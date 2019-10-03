@@ -4,7 +4,7 @@ require "net/smtp/version"
 
 Gem::Specification.new do |spec|
   spec.name          = "net-smtp"
-  spec.version       = Net::Smtp::VERSION
+  spec.version       = Net::SMTP::VERSION
   spec.authors       = ["Hiroshi SHIBATA"]
   spec.email         = ["hsbt@ruby-lang.org"]
 
