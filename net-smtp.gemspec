@@ -11,6 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary       = %q{Simple Mail Transfer Protocol client library for Ruby.}
   spec.description   = %q{Simple Mail Transfer Protocol client library for Ruby.}
   spec.homepage      = "https://github.com/ruby/net-smtp"
+  spec.license       = "BSD-2-Clause"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
