@@ -1,8 +1,8 @@
-# Net::Smtp
+# Net::SMTP
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/net/smtp`. To experiment with that code, run `bin/console` for an interactive prompt.
+This library provides functionality to send internet mail via SMTP, the Simple Mail Transfer Protocol.
 
-TODO: Delete this and the text above, and describe your gem
+For details of SMTP itself, see [RFC2821] (http://www.ietf.org/rfc/rfc2821.txt).
 
 ## Installation
 
@@ -22,7 +22,69 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+### Sending Messages
+
+You must open a connection to an SMTP server before sending messages.
+The first argument is the address of your SMTP server, and the second
+argument is the port number. Using SMTP.start with a block is the simplest
+way to do this. This way, the SMTP connection is closed automatically
+after the block is executed.
+
+```ruby
+require 'net/smtp'
+Net::SMTP.start('your.smtp.server', 25) do |smtp|
+  # Use the SMTP object smtp only in this block.
+end
+```
+
+Replace 'your.smtp.server' with your SMTP server. Normally
+your system manager or internet provider supplies a server
+for you.
+
+Then you can send messages.
+
+```ruby
+msgstr = <<END_OF_MESSAGE
+From: Your Name <your@mail.address>
+To: Destination Address <someone@example.com>
+Subject: test message
+Date: Sat, 23 Jun 2001 16:26:43 +0900
+Message-Id: <unique.message.id.string@example.com>
+
+This is a test message.
+END_OF_MESSAGE
+
+require 'net/smtp'
+Net::SMTP.start('your.smtp.server', 25) do |smtp|
+  smtp.send_message msgstr,
+                    'your@mail.address',
+                    'his_address@example.com'
+end
+```
+
+### Closing the Session
+
+You MUST close the SMTP session after sending messages, by calling
+the #finish method:
+
+```ruby
+# using SMTP#finish
+smtp = Net::SMTP.start('your.smtp.server', 25)
+smtp.send_message msgstr, 'from@address', 'to@address'
+smtp.finish
+```
+
+You can also use the block form of SMTP.start/SMTP#start.  This closes
+the SMTP session automatically:
+
+```ruby
+# using block form of SMTP.start
+Net::SMTP.start('your.smtp.server', 25) do |smtp|
+  smtp.send_message msgstr, 'from@address', 'to@address'
+end
+```
+
+I strongly recommend this scheme.  This form is simpler and more robust.
 
 ## Development
 
