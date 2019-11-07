@@ -1,12 +1,14 @@
-lib = File.expand_path("lib", __dir__)
-$LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require "net/smtp/version"
+begin
+  require_relative "lib/net/smtp/version"
+rescue LoadError # Fallback to load version file in ruby core repository
+  require_relative "version"
+end
 
 Gem::Specification.new do |spec|
   spec.name          = "net-smtp"
   spec.version       = Net::SMTP::VERSION
-  spec.authors       = ["Hiroshi SHIBATA"]
-  spec.email         = ["hsbt@ruby-lang.org"]
+  spec.authors       = ["Yukihiro Matsumoto"]
+  spec.email         = ["matz@ruby-lang.org"]
 
   spec.summary       = %q{Simple Mail Transfer Protocol client library for Ruby.}
   spec.description   = %q{Simple Mail Transfer Protocol client library for Ruby.}
