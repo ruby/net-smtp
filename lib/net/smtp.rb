@@ -1042,11 +1042,7 @@ module Net
         return {} unless @string[3, 1] == '-'
         h = {}
         @string.lines.drop(1).each do |line|
-<<<<<<< HEAD
-          k, *v = line[4..-1].chomp.split
-=======
           k, *v = line[4..-1].split(' ')
->>>>>>> 2b7409a2f2... Specify explicit separator not to be affected by $;
           h[k] = v
         end
         h
