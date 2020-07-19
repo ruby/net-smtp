@@ -146,8 +146,8 @@ module Net
   # The SMTP server will judge whether it should send or reject
   # the SMTP session by inspecting the HELO domain.
   #
-  #     Net::SMTP.start('your.smtp.server', 25,
-  #                     'mail.from.domain') { |smtp| ... }
+  #     Net::SMTP.start('your.smtp.server', 25
+  #                     helo: 'mail.from.domain') { |smtp| ... }
   #
   # === SMTP Authentication
   #
@@ -157,15 +157,15 @@ module Net
   # SMTP.start/SMTP#start.
   #
   #     # PLAIN
-  #     Net::SMTP.start('your.smtp.server', 25, 'mail.from.domain',
-  #                     'Your Account', 'Your Password', :plain)
+  #     Net::SMTP.start('your.smtp.server', 25
+  #                     user: 'Your Account', secret: 'Your Password', authtype: :plain)
   #     # LOGIN
-  #     Net::SMTP.start('your.smtp.server', 25, 'mail.from.domain',
-  #                     'Your Account', 'Your Password', :login)
+  #     Net::SMTP.start('your.smtp.server', 25
+  #                     user: 'Your Account', secret: 'Your Password', authtype: :login)
   #
   #     # CRAM MD5
-  #     Net::SMTP.start('your.smtp.server', 25, 'mail.from.domain',
-  #                     'Your Account', 'Your Password', :cram_md5)
+  #     Net::SMTP.start('your.smtp.server', 25
+  #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
   #
   class SMTP < Protocol
 
@@ -401,11 +401,15 @@ module Net
     #
 
     #
+    # :call-seq:
+    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil) { |smtp| ... }
+    #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #
     # Creates a new Net::SMTP object and connects to the server.
     #
     # This method is equivalent to:
     #
-    #   Net::SMTP.new(address, port).start(helo_domain, account, password, authtype)
+    #   Net::SMTP.new(address, port).start(helo: helo_domain, user: account, secret: password, authtype: authtype)
     #
     # === Example
     #
@@ -449,10 +453,15 @@ module Net
     # * Net::ReadTimeout
     # * IOError
     #
-    def SMTP.start(address, port = nil, helo = 'localhost',
-                   user = nil, secret = nil, authtype = nil,
-                   &block)   # :yield: smtp
-      new(address, port).start(helo, user, secret, authtype, &block)
+    def SMTP.start(address, port = nil, *args, helo: nil,
+                   user: nil, secret: nil, password: nil, authtype: nil,
+                   &block)
+      raise ArgumentError, "wrong number of arguments (given #{args.size + 2}, expected 1..6)" if args.size > 4
+      helo ||= args[0] || 'localhost'
+      user ||= args[1]
+      secret ||= password || args[2]
+      authtype ||= args[3]
+      new(address, port).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
     end
 
     # +true+ if the SMTP session has been started.
@@ -460,6 +469,10 @@ module Net
       @started
     end
 
+    #
+    # :call-seq:
+    #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil) { |smtp| ... }
+    #  start(helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Opens a TCP connection and starts the SMTP session.
     #
@@ -487,7 +500,7 @@ module Net
     #
     #     require 'net/smtp'
     #     smtp = Net::SMTP.new('smtp.mail.server', 25)
-    #     smtp.start(helo_domain, account, password, authtype) do |smtp|
+    #     smtp.start(helo: helo_domain, user: account, secret: password, authtype: authtype) do |smtp|
     #       smtp.send_message msgstr, 'from@example.com', ['dest@example.com']
     #     end
     #
@@ -511,8 +524,13 @@ module Net
     # * Net::ReadTimeout
     # * IOError
     #
-    def start(helo = 'localhost',
-              user = nil, secret = nil, authtype = nil)   # :yield: smtp
+    def start(*args, helo: nil,
+              user: nil, secret: nil, password: nil, authtype: nil)
+      raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
+      helo ||= args[0] || 'localhost'
+      user ||= args[1]
+      secret ||= password || args[2]
+      authtype ||= args[3]
       if block_given?
         begin
           do_start helo, user, secret, authtype
