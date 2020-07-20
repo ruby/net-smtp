@@ -583,7 +583,7 @@ module Net
       s.sync_close = true
       s.hostname = @address if s.respond_to? :hostname=
       ssl_socket_connect(s, @open_timeout)
-      if @ssl_context.verify_mode != OpenSSL::SSL::VERIFY_NONE
+      if @ssl_context.verify_mode && @ssl_context.verify_mode != OpenSSL::SSL::VERIFY_NONE
         s.post_connection_check(@address)
       end
       verified = true
