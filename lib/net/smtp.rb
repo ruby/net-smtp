@@ -168,6 +168,7 @@ module Net
   #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
   #
   class SMTP < Protocol
+    VERSION = "0.1.0"
 
     Revision = %q$Revision$.split[1]
 
