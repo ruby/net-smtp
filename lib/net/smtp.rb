@@ -218,7 +218,7 @@ module Net
       @error_occurred = false
       @debug_output = nil
       @tls = false
-      @starttls = false
+      @starttls = :auto
       @ssl_context = nil
     end
 
@@ -296,7 +296,7 @@ module Net
     # to have any effect.  +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_tls(context = SMTP.default_ssl_context)
       raise 'openssl library not installed' unless defined?(OpenSSL)
-      raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @starttls
+      raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @starttls == :always
       @tls = true
       @ssl_context = context
     end
@@ -571,7 +571,7 @@ module Net
       @socket = new_internet_message_io(tls? ? tlsconnect(s) : s)
       check_response critical { recv_response() }
       do_helo helo_domain
-      if starttls_always? or (capable_starttls? and starttls_auto?)
+      if ! tls? and (starttls_always? or (capable_starttls? and starttls_auto?))
         unless capable_starttls?
           raise SMTPUnsupportedCommand,
               "STARTTLS is not supported on this server"
