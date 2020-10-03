@@ -49,7 +49,7 @@ module Net
     def test_default_with_starttls_capable
       smtp = MySMTP.new(start_smtpd(true))
       smtp.start
-      assert(!@starttls_executed)
+      assert(@starttls_executed)
     end
 
     def test_default_without_starttls_capable
