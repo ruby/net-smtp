@@ -57,6 +57,12 @@ module Net
       @client_socket
     end
 
+    def test_default
+      smtp = MySMTP.new(start_smtpd(true))
+      smtp.start
+      assert_not_nil(smtp.__ssl_context)
+    end
+
     def test_enable_tls
       smtp = MySMTP.new(start_smtpd(true))
       context = OpenSSL::SSL::SSLContext.new
