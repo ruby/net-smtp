@@ -578,7 +578,7 @@ module Net
               "STARTTLS is not supported on this server"
         end
         starttls
-        @socket = new_internet_message_io(tlsconnect(s, @ssl_context_starttls))
+        @socket = new_internet_message_io(tlsconnect(s, @ssl_context_starttls || SMTP.default_ssl_context))
         # helo response may be different after STARTTLS
         do_helo helo_domain
       end
