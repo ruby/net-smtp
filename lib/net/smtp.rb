@@ -219,7 +219,8 @@ module Net
       @debug_output = nil
       @tls = false
       @starttls = :auto
-      @ssl_context = nil
+      @ssl_context_tls = nil
+      @ssl_context_starttls = nil
     end
 
     # Provide human-readable stringification of class state.
@@ -298,7 +299,7 @@ module Net
       raise 'openssl library not installed' unless defined?(OpenSSL)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @starttls == :always
       @tls = true
-      @ssl_context = context
+      @ssl_context_tls = context
     end
 
     alias enable_ssl enable_tls
@@ -307,7 +308,7 @@ module Net
     # connection is established to have any effect.
     def disable_tls
       @tls = false
-      @ssl_context = nil
+      @ssl_context_tls = nil
     end
 
     alias disable_ssl disable_tls
@@ -335,7 +336,7 @@ module Net
       raise 'openssl library not installed' unless defined?(OpenSSL)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @tls
       @starttls = :always
-      @ssl_context = context
+      @ssl_context_starttls = context
     end
 
     # Enables SMTP/TLS (STARTTLS) for this object if server accepts.
@@ -344,14 +345,14 @@ module Net
       raise 'openssl library not installed' unless defined?(OpenSSL)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @tls
       @starttls = :auto
-      @ssl_context = context
+      @ssl_context_starttls = context
     end
 
     # Disables SMTP/TLS (STARTTLS) for this object.  Must be called
     # before the connection is established to have any effect.
     def disable_starttls
       @starttls = false
-      @ssl_context = nil
+      @ssl_context_starttls = nil
     end
 
     # The address of the SMTP server to connect to.
@@ -568,7 +569,7 @@ module Net
         tcp_socket(@address, @port)
       end
       logging "Connection opened: #{@address}:#{@port}"
-      @socket = new_internet_message_io(tls? ? tlsconnect(s) : s)
+      @socket = new_internet_message_io(tls? ? tlsconnect(s, @ssl_context_tls) : s)
       check_response critical { recv_response() }
       do_helo helo_domain
       if ! tls? and (starttls_always? or (capable_starttls? and starttls_auto?))
@@ -577,7 +578,7 @@ module Net
               "STARTTLS is not supported on this server"
         end
         starttls
-        @socket = new_internet_message_io(tlsconnect(s))
+        @socket = new_internet_message_io(tlsconnect(s, @ssl_context_starttls))
         # helo response may be different after STARTTLS
         do_helo helo_domain
       end
@@ -595,14 +596,14 @@ module Net
       OpenSSL::SSL::SSLSocket.new socket, context
     end
 
-    def tlsconnect(s)
+    def tlsconnect(s, context)
       verified = false
-      s = ssl_socket(s, @ssl_context)
+      s = ssl_socket(s, context)
       logging "TLS connection started"
       s.sync_close = true
       s.hostname = @address if s.respond_to? :hostname=
       ssl_socket_connect(s, @open_timeout)
-      if @ssl_context.verify_mode && @ssl_context.verify_mode != OpenSSL::SSL::VERIFY_NONE
+      if context.verify_mode && context.verify_mode != OpenSSL::SSL::VERIFY_NONE
         s.post_connection_check(@address)
       end
       verified = true
