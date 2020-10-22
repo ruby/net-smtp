@@ -25,7 +25,9 @@ module Net
 
       def ssl_socket(socket, context)
         @__ssl_context = context
-        super
+        s = super
+        s.define_singleton_method(:post_connection_check){|_|}
+        s
       end
     end
 
@@ -60,7 +62,7 @@ module Net
     def test_default
       smtp = MySMTP.new(start_smtpd(true))
       smtp.start
-      assert_not_nil(smtp.__ssl_context)
+      assert_equal(OpenSSL::SSL::VERIFY_PEER, smtp.__ssl_context.verify_mode)
     end
 
     def test_enable_tls
@@ -95,6 +97,18 @@ module Net
       smtp.disable_tls
       smtp.start
       assert_equal(context, smtp.__ssl_context)
+    end
+
+    def test_start_with_tls_verify_true
+      smtp = MySMTP.new(start_smtpd(true))
+      smtp.start(tls_verify: true)
+      assert_equal(OpenSSL::SSL::VERIFY_PEER, smtp.__ssl_context.verify_mode)
+    end
+
+    def test_start_with_tls_verify_false
+      smtp = MySMTP.new(start_smtpd(true))
+      smtp.start(tls_verify: false)
+      assert_equal(OpenSSL::SSL::VERIFY_NONE, smtp.__ssl_context.verify_mode)
     end
   end
 end
