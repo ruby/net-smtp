@@ -194,6 +194,9 @@ module Net
     def SMTP.default_ssl_context(verify_peer=true)
       context = OpenSSL::SSL::SSLContext.new
       context.verify_mode = verify_peer ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
+      store = OpenSSL::X509::Store.new
+      store.set_default_paths
+      context.cert_store = store
       context
     end
 
