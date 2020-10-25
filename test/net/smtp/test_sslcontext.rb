@@ -4,7 +4,7 @@ require 'test/unit'
 module Net
   class TestSSLContext < Test::Unit::TestCase
     class MySMTP < SMTP
-      attr_reader :__ssl_context
+      attr_reader :__ssl_context, :__tls_hostname
 
       def initialize(socket)
         @fake_socket = socket
@@ -26,7 +26,8 @@ module Net
       def ssl_socket(socket, context)
         @__ssl_context = context
         s = super
-        s.define_singleton_method(:post_connection_check){|_|}
+        hostname = @__tls_hostname = ''
+        s.define_singleton_method(:post_connection_check){ |name| hostname.replace(name) }
         s
       end
     end
@@ -110,5 +111,18 @@ module Net
       smtp.start(tls_verify: false)
       assert_equal(OpenSSL::SSL::VERIFY_NONE, smtp.__ssl_context.verify_mode)
     end
+
+    def test_start_with_tls_hostname
+      smtp = MySMTP.new(start_smtpd(true))
+      smtp.start(tls_hostname: "localhost")
+      assert_equal("localhost", smtp.__tls_hostname)
+    end
+
+    def test_start_without_tls_hostname
+      smtp = MySMTP.new(start_smtpd(true))
+      smtp.start
+      assert_equal("smtp.example.com", smtp.__tls_hostname)
+    end
+
   end
 end

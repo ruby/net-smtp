@@ -409,14 +409,14 @@ module Net
 
     #
     # :call-seq:
-    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls_verify: true) { |smtp| ... }
+    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls_verify: true, tls_hostname: nil) { |smtp| ... }
     #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Creates a new Net::SMTP object and connects to the server.
     #
     # This method is equivalent to:
     #
-    #   Net::SMTP.new(address, port).start(helo: helo_domain, user: account, secret: password, authtype: authtype, tls_verify: flag)
+    #   Net::SMTP.new(address, port).start(helo: helo_domain, user: account, secret: password, authtype: authtype, tls_verify: flag, tls_hostname: hostname)
     #
     # === Example
     #
@@ -447,6 +447,8 @@ module Net
     # type, one of :plain, :login, or :cram_md5.  See the discussion of
     # SMTP Authentication in the overview notes.
     # If +tls_verify+ is true, verify the server's certificate. The default is true.
+    # If the hostname in the server certificate is different from +address+,
+    # it can be specified with +tls_hostname+.
     #
     # === Errors
     #
@@ -462,14 +464,15 @@ module Net
     # * IOError
     #
     def SMTP.start(address, port = nil, *args, helo: nil,
-                   user: nil, secret: nil, password: nil, authtype: nil, tls_verify: true,
+                   user: nil, secret: nil, password: nil, authtype: nil,
+                   tls_verify: true, tls_hostname: nil,
                    &block)
       raise ArgumentError, "wrong number of arguments (given #{args.size + 2}, expected 1..6)" if args.size > 4
       helo ||= args[0] || 'localhost'
       user ||= args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
-      new(address, port).start(helo: helo, user: user, secret: secret, authtype: authtype, tls_verify: tls_verify, &block)
+      new(address, port).start(helo: helo, user: user, secret: secret, authtype: authtype, tls_verify: tls_verify, tls_hostname: tls_hostname, &block)
     end
 
     # +true+ if the SMTP session has been started.
@@ -479,7 +482,7 @@ module Net
 
     #
     # :call-seq:
-    #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil, tls_verify: true) { |smtp| ... }
+    #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil, tls_verify: true, tls_hostname: nil) { |smtp| ... }
     #  start(helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Opens a TCP connection and starts the SMTP session.
@@ -495,6 +498,8 @@ module Net
     # :login, :plain, and :cram_md5.  See the notes on SMTP Authentication
     # in the overview.
     # If +tls_verify+ is true, verify the server's certificate. The default is true.
+    # If the hostname in the server certificate is different from +address+,
+    # it can be specified with +tls_hostname+.
     #
     # === Block Usage
     #
@@ -534,7 +539,7 @@ module Net
     # * IOError
     #
     def start(*args, helo: nil,
-              user: nil, secret: nil, password: nil, authtype: nil, tls_verify: true)
+              user: nil, secret: nil, password: nil, authtype: nil, tls_verify: true, tls_hostname: nil)
       raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
       helo ||= args[0] || 'localhost'
       user ||= args[1]
@@ -546,6 +551,7 @@ module Net
       if @starttls && @ssl_context_starttls.nil?
         @ssl_context_starttls = SMTP.default_ssl_context(tls_verify)
       end
+      @tls_hostname = tls_hostname
       if block_given?
         begin
           do_start helo, user, secret, authtype
@@ -614,10 +620,10 @@ module Net
       s = ssl_socket(s, context)
       logging "TLS connection started"
       s.sync_close = true
-      s.hostname = @address if s.respond_to? :hostname=
+      s.hostname = @tls_hostname || @address if s.respond_to? :hostname=
       ssl_socket_connect(s, @open_timeout)
       if context.verify_mode && context.verify_mode != OpenSSL::SSL::VERIFY_NONE
-        s.post_connection_check(@address)
+        s.post_connection_check(@tls_hostname || @address)
       end
       verified = true
       s
