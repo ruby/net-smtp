@@ -23,17 +23,14 @@ module Net
 
     require 'stringio'
     class SSLSocket < StringIO
-      attr_accessor :sync_close, :connected, :closed
+      attr_accessor :sync_close, :closed
 
       def initialize(*args)
-        @connected = false
-        @closed    = true
+        @closed = false
         super
       end
 
       def connect
-        self.connected = true
-        self.closed = false
       end
 
       def close
@@ -44,19 +41,16 @@ module Net
       end
     end
 
-    def test_ssl_socket_close_on_post_connection_check_fail
+    def test_ssl_socket_close_on_connect_fail
       tcp_socket = StringIO.new success_response
 
       ssl_socket = SSLSocket.new.extend Module.new {
-        def post_connection_check omg
-          raise OpenSSL::SSL::SSLError, 'hostname was not match with the server certificate'
+        def connect
+          raise OpenSSL::SSL::SSLError, "SSL_connect returned=1 errno=0 state=error: certificate verify failed (Hostname mismatch)"
         end
       }
 
-      ssl_context = OpenSSL::SSL::SSLContext.new
-      ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
       connection = MySMTP.new('localhost', 25)
-      connection.enable_starttls_auto(ssl_context)
       connection.fake_tcp = tcp_socket
       connection.fake_ssl = ssl_socket
 
@@ -66,13 +60,12 @@ module Net
       assert_equal true, ssl_socket.closed
     end
 
-    def test_ssl_socket_open_on_post_connection_check_success
+    def test_ssl_socket_open_on_connect_success
       tcp_socket = StringIO.new success_response
 
       ssl_socket = SSLSocket.new success_response
 
       connection = MySMTP.new('localhost', 25)
-      connection.enable_starttls_auto
       connection.fake_tcp = tcp_socket
       connection.fake_ssl = ssl_socket
 
