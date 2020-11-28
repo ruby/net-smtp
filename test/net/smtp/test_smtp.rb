@@ -24,7 +24,20 @@ module Net
       def readline
         line = @read_io.gets
         raise 'ran out of input' unless line
-        line.chop
+        line.chomp
+      end
+
+      def io
+        @write_io
+      end
+
+      def write_message msg
+        @write_io.write "#{msg.chomp}\r\n.\r\n"
+      end
+
+      def write_message_by_block &block
+        block.call(@write_io)
+        @write_io.write ".\r\n"
       end
     end
 
@@ -49,6 +62,102 @@ module Net
                      '[Bug #9125]'
     end
 
+    def test_send_message
+      sock = FakeSocket.new [
+        "220 OK",        # MAIL FROM
+        "250 OK",        # RCPT TO
+        "354 Send data", # DATA
+        "250 OK",
+      ].join "\r\n"
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+
+      smtp.send_message "Lorem ipsum", "foo@example.com", "bar@example.com"
+
+      sock.write_io.rewind
+      assert_equal "MAIL FROM:<foo@example.com>\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<bar@example.com>\r\n", sock.write_io.readline
+      assert_equal "DATA\r\n", sock.write_io.readline
+      assert_equal "Lorem ipsum\r\n", sock.write_io.readline
+      assert_equal ".\r\n", sock.write_io.readline
+      assert sock.write_io.eof?
+    end
+
+    def test_send_message_params
+      sock = FakeSocket.new [
+        "220 OK",        # MAIL FROM
+        "250 OK",        # RCPT TO
+        "250 OK",        # RCPT TO
+        "250 OK",        # RCPT TO
+        "354 Send data", # DATA
+        "250 OK",
+      ].join "\r\n"
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+
+      smtp.send_message "Lorem ipsum",
+        ["foo@example.com", [:FOO]],
+        ["1@example.com", ["2@example.com", ["FOO"]], ["3@example.com", {BAR: 1}]]
+
+      sock.write_io.rewind
+      assert_equal "MAIL FROM:<foo@example.com> FOO\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<1@example.com>\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<2@example.com> FOO\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<3@example.com> BAR=1\r\n", sock.write_io.readline
+      assert_equal "DATA\r\n", sock.write_io.readline
+      assert_equal "Lorem ipsum\r\n", sock.write_io.readline
+      assert_equal ".\r\n", sock.write_io.readline
+      assert sock.write_io.eof?
+    end
+
+    def test_open_message_stream
+      sock = FakeSocket.new [
+        "220 OK",        # MAIL FROM
+        "250 OK",        # RCPT TO
+        "354 Send data", # DATA
+        "250 OK",
+      ].join "\r\n"
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+
+      smtp.open_message_stream "foo@example.com", "bar@example.com" do |f|
+        f.puts "Lorem ipsum"
+      end
+
+      sock.write_io.rewind
+      assert_equal "MAIL FROM:<foo@example.com>\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<bar@example.com>\r\n", sock.write_io.readline
+      assert_equal "DATA\r\n", sock.write_io.readline
+      assert_equal "Lorem ipsum\n", sock.write_io.readline
+      assert_equal ".\r\n", sock.write_io.readline
+      assert sock.write_io.eof?
+    end
+
+    def test_open_message_stream_params
+      sock = FakeSocket.new [
+        "220 OK",        # MAIL FROM
+        "250 OK",        # RCPT TO
+        "250 OK",        # RCPT TO
+        "354 Send data", # DATA
+        "250 OK",
+      ].join "\r\n"
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+
+      smtp.open_message_stream ["foo@example.com", [:FOO]], ["1@example.com", ["2@example.com", ["BAR"]]] do |f|
+        f.puts "Lorem ipsum"
+      end
+
+      sock.write_io.rewind
+      assert_equal "MAIL FROM:<foo@example.com> FOO\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<1@example.com>\r\n", sock.write_io.readline
+      assert_equal "RCPT TO:<2@example.com> BAR\r\n", sock.write_io.readline
+      assert_equal "DATA\r\n", sock.write_io.readline
+      assert_equal "Lorem ipsum\n", sock.write_io.readline
+      assert_equal ".\r\n", sock.write_io.readline
+      assert sock.write_io.eof?
+    end
+
     def test_esmtp
       smtp = Net::SMTP.new 'localhost', 25
       assert smtp.esmtp
@@ -59,11 +168,37 @@ module Net
       assert_equal 'omg', smtp.esmtp?
     end
 
-    def test_rset
+    def test_helo
+      sock = FakeSocket.new
       smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, FakeSocket.new
+      smtp.instance_variable_set :@socket, sock
+
+      assert smtp.helo("example.com")
+      assert_equal "HELO example.com\r\n", sock.write_io.string
+    end
+
+    def test_ehlo
+      sock = FakeSocket.new [
+        "220-smtp.example.com",
+        "250-STARTTLS",
+        "250-SIZE 100",
+        "250 XFOO 1 2 3",
+      ].join "\r\n"
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      res = smtp.ehlo("example.com")
+      assert res.success?
+      assert_equal ({"STARTTLS" => [], "SIZE" => ["100"], "XFOO" => ["1", "2", "3"]}), res.capabilities
+      assert_equal "EHLO example.com\r\n", sock.write_io.string
+    end
+
+    def test_rset
+      sock = FakeSocket.new
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
 
       assert smtp.rset
+      assert_equal "RSET\r\n", sock.write_io.string
     end
 
     def test_mailfrom
@@ -74,12 +209,41 @@ module Net
       assert_equal "MAIL FROM:<foo@example.com>\r\n", sock.write_io.string
     end
 
+    def test_mailfrom_params
+      sock = FakeSocket.new
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      assert smtp.mailfrom("foo@example.com", [:FOO]).success?
+      assert_equal "MAIL FROM:<foo@example.com> FOO\r\n", sock.write_io.string
+    end
+
     def test_rcptto
       sock = FakeSocket.new
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
       assert smtp.rcptto("foo@example.com").success?
       assert_equal "RCPT TO:<foo@example.com>\r\n", sock.write_io.string
+    end
+
+    def test_rcptto_params
+      sock = FakeSocket.new
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      assert smtp.rcptto("foo@example.com", ["FOO"]).success?
+      assert_equal "RCPT TO:<foo@example.com> FOO\r\n", sock.write_io.string
+    end
+
+    def test_addr_req
+      smtp = Net::SMTP.new 'localhost', 25
+
+      res = smtp.addr_req("MAIL FROM", "foo@example.com", [])
+      assert_equal "MAIL FROM:<foo@example.com>", res
+
+      res = smtp.addr_req("MAIL FROM", "foo@example.com", [:FOO, "BAR"])
+      assert_equal "MAIL FROM:<foo@example.com> FOO BAR", res
+
+      res = smtp.addr_req("MAIL FROM", "foo@example.com", {FOO: nil, BAR: "1"})
+      assert_equal "MAIL FROM:<foo@example.com> FOO BAR=1", res
     end
 
     def test_auth_plain
