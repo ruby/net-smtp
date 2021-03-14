@@ -636,11 +636,8 @@ module Net
       s = ssl_socket(s, context)
       logging "TLS connection started"
       s.sync_close = true
-      s.hostname = @tls_hostname || @address if s.respond_to? :hostname=
+      s.hostname = @tls_hostname || @address
       ssl_socket_connect(s, @open_timeout)
-      if context.verify_mode && context.verify_mode != OpenSSL::SSL::VERIFY_NONE
-        s.post_connection_check(@tls_hostname || @address)
-      end
       verified = true
       s
     ensure
