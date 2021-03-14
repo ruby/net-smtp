@@ -168,7 +168,7 @@ module Net
   #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
   #
   class SMTP < Protocol
-    VERSION = "0.2.1-patch-ssl-context"
+    VERSION = "0.2.1"
 
     Revision = %q$Revision$.split[1]
 
@@ -553,9 +553,7 @@ module Net
       secret ||= password || args[2]
       authtype ||= args[3]
       ssl_context_params = ssl_context_params ? ssl_context_params : {}
-      if ssl_context_params.has_key?(:verify_mode)
-        tls_verify = ssl_context_params[:verify_mode] != OpenSSL::SSL::VERIFY_NONE
-      else
+      unless ssl_context_params.has_key?(:verify_mode)
         ssl_context_params[:verify_mode] = tls_verify ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
       end
       if @tls && @ssl_context_tls.nil?
