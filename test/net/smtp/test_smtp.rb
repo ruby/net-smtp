@@ -112,6 +112,8 @@ module Net
     end
 
     def test_tls_connect
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
+
       servers = Socket.tcp_server_sockets("localhost", 0)
       ctx = OpenSSL::SSL::SSLContext.new
       ctx.ca_file = CA_FILE
@@ -121,52 +123,46 @@ module Net
       ctx.cert = File.open(SERVER_CERT) { |f|
         OpenSSL::X509::Certificate.new(f)
       }
-      begin
-        sock = nil
-        Thread.start do
-          s = accept(servers)
-          sock = OpenSSL::SSL::SSLSocket.new(s, ctx)
-          sock.sync_close = true
-          sock.accept
-          sock.write("220 localhost Service ready\r\n")
-          sock.gets
-          sock.write("250 localhost\r\n")
-          sock.gets
-          sock.write("221 localhost Service closing transmission channel\r\n")
-        end
-        smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
-        smtp.enable_tls
-        smtp.open_timeout = 1
-        smtp.start(tls_verify: false) do
-        end
-      ensure
-        sock.close if sock
-        servers.each(&:close)
+      sock = nil
+      Thread.start do
+        s = accept(servers)
+        sock = OpenSSL::SSL::SSLSocket.new(s, ctx)
+        sock.sync_close = true
+        sock.accept
+        sock.write("220 localhost Service ready\r\n")
+        sock.gets
+        sock.write("250 localhost\r\n")
+        sock.gets
+        sock.write("221 localhost Service closing transmission channel\r\n")
       end
-    rescue LoadError
-      # skip (require openssl)
+      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
+      smtp.enable_tls
+      smtp.open_timeout = 1
+      smtp.start(tls_verify: false) do
+      end
+    ensure
+      sock&.close
+      servers&.each(&:close)
     end
 
     def test_tls_connect_timeout
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
+
       servers = Socket.tcp_server_sockets("localhost", 0)
-      begin
-        sock = nil
-        Thread.start do
-          sock = accept(servers)
-        end
-        smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
-        smtp.enable_tls
-        smtp.open_timeout = 0.1
-        assert_raise(Net::OpenTimeout) do
-          smtp.start do
-          end
-        end
-      rescue LoadError
-        # skip (require openssl)
-      ensure
-        sock.close if sock
-        servers.each(&:close)
+      sock = nil
+      Thread.start do
+        sock = accept(servers)
       end
+      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
+      smtp.enable_tls
+      smtp.open_timeout = 0.1
+      assert_raise(Net::OpenTimeout) do
+        smtp.start do
+        end
+      end
+    ensure
+      sock&.close
+      servers&.each(&:close)
     end
 
     def test_eof_error_backtrace

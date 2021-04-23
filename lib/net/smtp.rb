@@ -298,7 +298,7 @@ module Net
     # this object.  Must be called before the connection is established
     # to have any effect.  +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_tls(context = nil)
-      raise 'openssl library not installed' unless defined?(OpenSSL)
+      raise 'openssl library not installed' unless defined?(OpenSSL::VERSION)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @starttls == :always
       @tls = true
       @ssl_context_tls = context
@@ -335,7 +335,7 @@ module Net
     # Enables SMTP/TLS (STARTTLS) for this object.
     # +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_starttls(context = nil)
-      raise 'openssl library not installed' unless defined?(OpenSSL)
+      raise 'openssl library not installed' unless defined?(OpenSSL::VERSION)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @tls
       @starttls = :always
       @ssl_context_starttls = context
@@ -344,7 +344,7 @@ module Net
     # Enables SMTP/TLS (STARTTLS) for this object if server accepts.
     # +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_starttls_auto(context = nil)
-      raise 'openssl library not installed' unless defined?(OpenSSL)
+      raise 'openssl library not installed' unless defined?(OpenSSL::VERSION)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @tls
       @starttls = :auto
       @ssl_context_starttls = context
@@ -552,17 +552,19 @@ module Net
       user ||= args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
-      ssl_context_params = ssl_context_params ? ssl_context_params : {}
-      unless ssl_context_params.has_key?(:verify_mode)
-        ssl_context_params[:verify_mode] = tls_verify ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
+      if defined?(OpenSSL::VERSION)
+        ssl_context_params = ssl_context_params ? ssl_context_params : {}
+        unless ssl_context_params.has_key?(:verify_mode)
+          ssl_context_params[:verify_mode] = tls_verify ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
+        end
+        if @tls && @ssl_context_tls.nil?
+          @ssl_context_tls = SMTP.default_ssl_context(ssl_context_params)
+        end
+        if @starttls && @ssl_context_starttls.nil?
+          @ssl_context_starttls = SMTP.default_ssl_context(ssl_context_params)
+        end
+        @tls_hostname = tls_hostname
       end
-      if @tls && @ssl_context_tls.nil?
-        @ssl_context_tls = SMTP.default_ssl_context(ssl_context_params)
-      end
-      if @starttls && @ssl_context_starttls.nil?
-        @ssl_context_starttls = SMTP.default_ssl_context(ssl_context_params)
-      end
-      @tls_hostname = tls_hostname
       if block_given?
         begin
           do_start helo, user, secret, authtype
