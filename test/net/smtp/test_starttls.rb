@@ -1,6 +1,11 @@
 require 'net/smtp'
 require 'test/unit'
 
+unless defined?(OpenSSL::VERSION)
+  warn "#{__FILE__}: openssl library not loaded; skipping"
+  return
+end
+
 module Net
   class TestStarttls < Test::Unit::TestCase
     class MySMTP < SMTP
