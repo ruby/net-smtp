@@ -76,6 +76,7 @@ module Net
       smtp.enable_starttls
       err = assert_raise(Net::SMTPUnsupportedCommand) { smtp.start }
       assert_equal("STARTTLS is not supported on this server", err.message)
+      assert_nil(err.response)
     end
 
     def test_enable_starttls_auto_with_starttls_capable

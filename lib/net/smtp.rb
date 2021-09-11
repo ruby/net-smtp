@@ -31,6 +31,17 @@ module Net
   module SMTPError
     # This *class* is a module for backward compatibility.
     # In later release, this module becomes a class.
+
+    attr_reader :response
+
+    def initialize(response, message: nil)
+      @response = response
+      @message = message
+    end
+
+    def message
+      @message || response.message
+    end
   end
 
   # Represents an SMTP authentication error.
@@ -609,8 +620,7 @@ module Net
       do_helo helo_domain
       if ! tls? and (starttls_always? or (capable_starttls? and starttls_auto?))
         unless capable_starttls?
-          raise SMTPUnsupportedCommand,
-              "STARTTLS is not supported on this server"
+          raise SMTPUnsupportedCommand.new(nil, message: "STARTTLS is not supported on this server")
         end
         starttls
         @socket = new_internet_message_io(tlsconnect(s, @ssl_context_starttls))
@@ -1013,25 +1023,25 @@ module Net
 
     def check_response(res)
       unless res.success?
-        raise res.exception_class, res.message
+        raise res.exception_class.new(res)
       end
     end
 
     def check_continue(res)
       unless res.continue?
-        raise SMTPUnknownError, "could not get 3xx (#{res.status}: #{res.string})"
+        raise SMTPUnknownError.new(res, message: "could not get 3xx (#{res.status}: #{res.string})")
       end
     end
 
     def check_auth_response(res)
       unless res.success?
-        raise SMTPAuthenticationError, res.message
+        raise SMTPAuthenticationError.new(res)
       end
     end
 
     def check_auth_continue(res)
       unless res.continue?
-        raise res.exception_class, res.message
+        raise res.exception_class.new(res)
       end
     end
 

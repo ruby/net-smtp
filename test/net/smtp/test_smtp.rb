@@ -101,6 +101,94 @@ module Net
       assert_equal "AUTH PLAIN AGZvbwBiYXI=\r\n", sock.write_io.string
     end
 
+    def test_unsucessful_auth_plain
+      sock = FakeSocket.new("535 Authentication failed: FAIL\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.auth_plain("foo", "bar") }
+      assert_equal "535 Authentication failed: FAIL\n", err.message
+      assert_equal "535", err.response.status
+    end
+
+    def test_auth_login
+      sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n235 2.7.0 Authentication successful\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      assert smtp.auth_login("foo", "bar").success?
+    end
+
+    def test_unsucessful_auth_login
+      sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n535 Authentication failed: FAIL\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.auth_login("foo", "bar") }
+      assert_equal "535 Authentication failed: FAIL\n", err.message
+      assert_equal "535", err.response.status
+    end
+
+    def test_non_continue_auth_login
+      sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n235 2.7.0 Authentication successful\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPUnknownError) { smtp.auth_login("foo", "bar") }
+      assert_equal "235 2.7.0 Authentication successful\n", err.message
+      assert_equal "235", err.response.status
+    end
+
+    def test_unsuccessful_send_message_server_busy
+      sock = FakeSocket.new("400 BUSY\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPServerBusy) { smtp.send_message('message', 'ojab@example.com') }
+      assert_equal "400 BUSY\n", err.message
+      assert_equal "400", err.response.status
+    end
+
+    def test_unsuccessful_send_message_syntax_error
+      sock = FakeSocket.new("502 SYNTAX ERROR\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPSyntaxError) { smtp.send_message('message', 'ojab@example.com') }
+      assert_equal "502 SYNTAX ERROR\n", err.message
+      assert_equal "502", err.response.status
+    end
+
+    def test_unsuccessful_send_message_authentication_error
+      sock = FakeSocket.new("530 AUTH ERROR\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.send_message('message', 'ojab@example.com') }
+      assert_equal "530 AUTH ERROR\n", err.message
+      assert_equal "530", err.response.status
+    end
+
+    def test_unsuccessful_send_message_fatal_error
+      sock = FakeSocket.new("520 FATAL ERROR\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPFatalError) { smtp.send_message('message', 'ojab@example.com') }
+      assert_equal "520 FATAL ERROR\n", err.message
+      assert_equal "520", err.response.status
+    end
+
+    def test_unsuccessful_send_message_unknown_error
+      sock = FakeSocket.new("300 UNKNOWN\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPUnknownError) { smtp.send_message('message', 'ojab@example.com') }
+      assert_equal "300 UNKNOWN\n", err.message
+      assert_equal "300", err.response.status
+    end
+
+    def test_unsuccessful_data
+      sock = FakeSocket.new("250 OK\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPUnknownError) { smtp.data('message') }
+      assert_equal "could not get 3xx (250: 250 OK\n)", err.message
+      assert_equal "250", err.response.status
+    end
+
     def test_crlf_injection
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, FakeSocket.new
