@@ -1,5 +1,13 @@
 # NEWS
 
+## Version 0.2.2
+
+* Add `response` to SMTPError exceptions.
+* `Net::SMTP.start()` and `#start()` accepts `ssl_context_params` keyword argument.
+* Replace `Timeout.timeout` with socket timeout.
+* Remove needless files from gem.
+* Add dependency on digest, timeout.
+
 ## Version 0.2.1 (2020-11-18)
 
 ### Fixes
