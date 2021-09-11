@@ -1,5 +1,12 @@
 # NEWS
 
+## Version 0.2.1 (2020-11-18)
+
+### Fixes
+
+* Update the license for the default gems to dual licenses.
+* Add dependency for net-protocol.
+
 ## Version 0.2.0 (2020-11-15)
 
 ### Incompatible changes
