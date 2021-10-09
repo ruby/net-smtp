@@ -1,6 +1,6 @@
 # NEWS
 
-## Version 0.2.2
+## Version 0.2.2 (2021-10-09)
 
 * Add `response` to SMTPError exceptions.
 * `Net::SMTP.start()` and `#start()` accepts `ssl_context_params` keyword argument.
