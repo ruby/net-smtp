@@ -1,5 +1,11 @@
 # NEWS
 
+## Version 0.3.0
+
+### Incompatible changes
+
+* The tls_* paramter has been moved from start() to initialize().
+
 ## Version 0.2.2 (2021-10-09)
 
 * Add `response` to SMTPError exceptions.

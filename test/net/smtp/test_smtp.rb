@@ -234,10 +234,10 @@ module Net
         sock.gets
         sock.write("221 localhost Service closing transmission channel\r\n")
       end
-      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
+      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port, tls_verify: false)
       smtp.enable_tls
       smtp.open_timeout = 1
-      smtp.start(tls_verify: false) do
+      smtp.start do
       end
     ensure
       sock&.close
