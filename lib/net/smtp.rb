@@ -215,6 +215,10 @@ module Net
     # server.  +port+ is the port to connect to; it defaults to
     # port 25.
     #
+    # If +tls+ is true, enable TLS. The default is false.
+    # If +starttls+ is :always, enable STARTTLS, if +:auto+, use STARTTLS when the server supports it,
+    # if false, disable STARTTLS.
+    #
     # If +tls_verify+ is true, verify the server's certificate. The default is true.
     # If the hostname in the server certificate is different from +address+,
     # it can be specified with +tls_hostname+.
@@ -227,7 +231,7 @@ module Net
     # SMTP.start instead of SMTP.new if you want to do everything
     # at once.  Otherwise, follow SMTP.new with SMTP#start.
     #
-    def initialize(address, port = nil, tls_verify: true, tls_hostname: nil, ssl_context_params: nil)
+    def initialize(address, port = nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil)
       @address = address
       @port = (port || SMTP.default_port)
       @esmtp = true
@@ -238,8 +242,8 @@ module Net
       @read_timeout = 60
       @error_occurred = false
       @debug_output = nil
-      @tls = false
-      @starttls = :auto
+      @tls = tls
+      @starttls = starttls
       @ssl_context_tls = nil
       @ssl_context_starttls = nil
       @tls_verify = tls_verify
@@ -428,7 +432,7 @@ module Net
 
     #
     # :call-seq:
-    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
+    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
     #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Creates a new Net::SMTP object and connects to the server.
@@ -465,6 +469,11 @@ module Net
     # or other authentication token; and +authtype+ is the authentication
     # type, one of :plain, :login, or :cram_md5.  See the discussion of
     # SMTP Authentication in the overview notes.
+    #
+    # If +tls+ is true, enable TLS. The default is false.
+    # If +starttls+ is :always, enable STARTTLS, if +:auto+, use STARTTLS when the server supports it,
+    # if false, disable STARTTLS.
+    #
     # If +tls_verify+ is true, verify the server's certificate. The default is true.
     # If the hostname in the server certificate is different from +address+,
     # it can be specified with +tls_hostname+.
@@ -489,6 +498,7 @@ module Net
     #
     def SMTP.start(address, port = nil, *args, helo: nil,
                    user: nil, secret: nil, password: nil, authtype: nil,
+                   tls: false, starttls: :auto,
                    tls_verify: true, tls_hostname: nil, ssl_context_params: nil,
                    &block)
       raise ArgumentError, "wrong number of arguments (given #{args.size + 2}, expected 1..6)" if args.size > 4
@@ -496,7 +506,7 @@ module Net
       user ||= args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
-      new(address, port, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
+      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
     end
 
     # +true+ if the SMTP session has been started.
