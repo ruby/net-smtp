@@ -234,10 +234,10 @@ module Net
         sock.gets
         sock.write("221 localhost Service closing transmission channel\r\n")
       end
-      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
+      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port, tls_verify: false)
       smtp.enable_tls
       smtp.open_timeout = 1
-      smtp.start(tls_verify: false) do
+      smtp.start do
       end
     ensure
       sock&.close
@@ -287,6 +287,59 @@ module Net
       end
     end
 
+    if defined? OpenSSL::VERSION
+      def test_with_tls
+        port = fake_server_start(tls: true)
+        smtp = Net::SMTP.new('localhost', port, tls: true, tls_verify: false)
+        assert_nothing_raised do
+          smtp.start{}
+        end
+
+        port = fake_server_start(tls: false)
+        smtp = Net::SMTP.new('localhost', port, tls: false)
+        assert_nothing_raised do
+          smtp.start{}
+        end
+      end
+
+      def test_with_starttls_always
+        port = fake_server_start(starttls: true)
+        smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+        smtp.start{}
+        assert_equal(true, @starttls_started)
+
+        port = fake_server_start(starttls: false)
+        smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+        assert_raise Net::SMTPUnsupportedCommand do
+          smtp.start{}
+        end
+      end
+
+      def test_with_starttls_auto
+        port = fake_server_start(starttls: true)
+        smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+        smtp.start{}
+        assert_equal(true, @starttls_started)
+
+        port = fake_server_start(starttls: false)
+        smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+        smtp.start{}
+        assert_equal(false, @starttls_started)
+      end
+
+      def test_with_starttls_false
+        port = fake_server_start(starttls: true)
+        smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
+        smtp.start{}
+        assert_equal(false, @starttls_started)
+
+        port = fake_server_start(starttls: false)
+        smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
+        smtp.start{}
+        assert_equal(false, @starttls_started)
+      end
+    end
+
     def test_start
       port = fake_server_start
       smtp = Net::SMTP.start('localhost', port)
@@ -316,6 +369,51 @@ module Net
         Net::SMTP.start('localhost', 25, 'myname', 'account', 'password', :plain, :invalid_arg)
       end
       assert_equal('wrong number of arguments (given 7, expected 1..6)', err.message)
+    end
+
+    if defined? OpenSSL::VERSION
+      def test_start_with_tls
+        port = fake_server_start(tls: true)
+        assert_nothing_raised do
+          Net::SMTP.start('localhost', port, tls: true, tls_verify: false){}
+        end
+
+        port = fake_server_start(tls: false)
+        assert_nothing_raised do
+          Net::SMTP.start('localhost', port, tls: false){}
+        end
+      end
+
+      def test_start_with_starttls_always
+        port = fake_server_start(starttls: true)
+        Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
+        assert_equal(true, @starttls_started)
+
+        port = fake_server_start(starttls: false)
+        assert_raise Net::SMTPUnsupportedCommand do
+          Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
+        end
+      end
+
+      def test_start_with_starttls_auto
+        port = fake_server_start(starttls: true)
+        Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
+        assert_equal(true, @starttls_started)
+
+        port = fake_server_start(starttls: false)
+        Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
+        assert_equal(false, @starttls_started)
+      end
+
+      def test_start_with_starttls_false
+        port = fake_server_start(starttls: true)
+        Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
+        assert_equal(false, @starttls_started)
+
+        port = fake_server_start(starttls: false)
+        Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
+        assert_equal(false, @starttls_started)
+      end
     end
 
     def test_start_instance
@@ -360,23 +458,58 @@ module Net
       Socket.accept_loop(servers) { |s, _| break s }
     end
 
-    def fake_server_start(helo: 'localhost', user: nil, password: nil)
+    def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false)
+      @starttls_started = false
       servers = Socket.tcp_server_sockets('localhost', 0)
       @server_threads << Thread.start do
         Thread.current.abort_on_exception = true
         sock = accept(servers)
-        sock.puts "220 ready\r\n"
-        assert_equal("EHLO #{helo}\r\n", sock.gets)
-        sock.puts "220-servername\r\n220 AUTH PLAIN\r\n"
-        if user
-          credential = ["\0#{user}\0#{password}"].pack('m0')
-          assert_equal("AUTH PLAIN #{credential}\r\n", sock.gets)
-          sock.puts "235 2.7.0 Authentication successful\r\n"
+        if tls || starttls
+          ctx = OpenSSL::SSL::SSLContext.new
+          ctx.ca_file = CA_FILE
+          ctx.key = File.open(SERVER_KEY){|f| OpenSSL::PKey::RSA.new(f)}
+          ctx.cert = File.open(SERVER_CERT){|f| OpenSSL::X509::Certificate.new(f)}
         end
-        assert_equal("QUIT\r\n", sock.gets)
-        sock.puts "221 2.0.0 Bye\r\n"
-        sock.close
-        servers.each(&:close)
+        if tls
+          sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
+          sock.sync_close = true
+          sock.accept
+        end
+        sock.puts "220 ready\r\n"
+        while comm = sock.gets
+          case comm.chomp
+          when /\AEHLO /
+            assert_equal(helo, comm.split[1])
+            sock.puts "220-servername\r\n"
+            sock.puts "220-STARTTLS\r\n" if starttls
+            sock.puts "220 AUTH PLAIN\r\n"
+          when "STARTTLS"
+            unless starttls
+              sock.puts "502 5.5.1 Error: command not implemented\r\n"
+              next
+            end
+            sock.puts "220 2.0.0 Ready to start TLS\r\n"
+            sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
+            sock.sync_close = true
+            sock.accept
+            @starttls_started = true
+          when /\AAUTH PLAIN /
+            unless user
+              sock.puts "503 5.5.1 Error: authentication not enabled\r\n"
+              next
+            end
+            credential = ["\0#{user}\0#{password}"].pack('m0')
+            assert_equal(credential, comm.split[2])
+            sock.puts "235 2.7.0 Authentication successful\r\n"
+          when "QUIT"
+            sock.puts "221 2.0.0 Bye\r\n"
+            sock.close
+            servers.each(&:close)
+            break
+          else
+            sock.puts "502 5.5.2 Error: command not recognized\r\n"
+          end
+        end
       end
       port = servers[0].local_address.ip_port
       return port

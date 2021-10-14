@@ -1,5 +1,22 @@
 # NEWS
 
+## Version 0.3.0
+
+### Improvements
+
+* Add `tls`, `starttls` keyword arguments.
+      ```
+      # always use TLS connection for port 465.
+      Net::SMTP.start(hostname, 465, tls: true)
+
+      # do not use starttls for localhost
+      Net::SMTP.start('localhost', starttls: false)
+      ```
+
+### Incompatible changes
+
+* The tls_* paramter has been moved from start() to initialize().
+
 ## Version 0.2.2 (2021-10-09)
 
 * Add `response` to SMTPError exceptions.
