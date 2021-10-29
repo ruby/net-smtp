@@ -5,13 +5,13 @@
 ### Improvements
 
 * Add `tls`, `starttls` keyword arguments.
-      ```
-      # always use TLS connection for port 465.
-      Net::SMTP.start(hostname, 465, tls: true)
+    ```ruby
+    # always use TLS connection for port 465.
+    Net::SMTP.start(hostname, 465, tls: true)
 
-      # do not use starttls for localhost
-      Net::SMTP.start('localhost', starttls: false)
-      ```
+    # do not use starttls for localhost
+    Net::SMTP.start('localhost', starttls: false)
+    ```
 
 ### Incompatible changes
 
