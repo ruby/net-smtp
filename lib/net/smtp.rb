@@ -703,9 +703,9 @@ module Net
     # binary message with this method. +msgstr+ should include both
     # the message headers and body.
     #
-    # +from_addr+ is a String representing the source mail address.
+    # +from_addr+ is a String or Net::SMTP::Address representing the source mail address.
     #
-    # +to_addr+ is a String or Strings or Array of Strings, representing
+    # +to_addr+ is a String or Net::SMTP::Address or Array of them, representing
     # the destination mail address or addresses.
     #
     # === Example
@@ -714,6 +714,12 @@ module Net
     #       smtp.send_message msgstr,
     #                         'from@example.com',
     #                         ['dest@example.com', 'dest2@example.com']
+    #     end
+    #
+    #     Net::SMTP.start('smtp.example.com') do |smtp|
+    #       smtp.send_message msgstr,
+    #                         Net::SMTP::Address.new('from@example.com', size: 12345),
+    #                         Net::SMTP::Address.new('dest@example.com', notify: :success)
     #     end
     #
     # === Errors
@@ -752,9 +758,9 @@ module Net
     #
     # === Parameters
     #
-    # +from_addr+ is a String representing the source mail address.
+    # +from_addr+ is a String or Net::SMTP::Address representing the source mail address.
     #
-    # +to_addr+ is a String or Strings or Array of Strings, representing
+    # +to_addr+ is a String or Net::SMTP::Address or Array of them, representing
     # the destination mail address or addresses.
     #
     # === Example
@@ -904,8 +910,10 @@ module Net
       getok("EHLO #{domain}")
     end
 
+    # +from_addr+ is +String+ or +Net::SMTP::Address+
     def mailfrom(from_addr)
-      getok("MAIL FROM:<#{from_addr}>")
+      addr = Address.new(from_addr)
+      getok((["MAIL FROM:<#{addr.address}>"] + addr.parameters).join(' '))
     end
 
     def rcptto_list(to_addrs)
@@ -916,7 +924,7 @@ module Net
         begin
           rcptto addr
         rescue SMTPAuthenticationError
-          unknown_users << addr.dump
+          unknown_users << addr.to_s.dump
         else
           ok_users << addr
         end
@@ -929,8 +937,10 @@ module Net
       ret
     end
 
+    # +to_addr+ is +String+ or +Net::SMTP::Address+
     def rcptto(to_addr)
-      getok("RCPT TO:<#{to_addr}>")
+      addr = Address.new(to_addr)
+      getok((["RCPT TO:<#{addr.address}>"] + addr.parameters).join(' '))
     end
 
     # This method sends a message.
@@ -1137,6 +1147,33 @@ module Net
 
     def logging(msg)
       @debug_output << msg + "\n" if @debug_output
+    end
+
+    # Address with parametres for MAIL or RCPT command
+    class Address
+      # mail address [String]
+      attr_reader :address
+      # paramters [Array<String>]
+      attr_reader :parameters
+
+      # :call-seq:
+      #  initialize(address, parameter, ...)
+      #
+      # address +String+ or +Net::SMTP::Address+
+      # parameter +String+ or +Hash+
+      def initialize(address, *args, **kw_args)
+        if address.kind_of? Address
+          @address = address.address
+          @parameters = address.parameters
+        else
+          @address = address
+          @parameters = (args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}
+        end
+      end
+
+      def to_s
+        @address
+      end
     end
 
   end   # class SMTP
