@@ -70,6 +70,15 @@ module Net
       assert_equal 'omg', smtp.esmtp?
     end
 
+    def test_server_capabilities
+      port = fake_server_start(starttls: true)
+      smtp = Net::SMTP.start('localhost', port, starttls: false)
+      assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
+      assert_equal(true, smtp.capable?('STARTTLS'))
+      assert_equal(false, smtp.capable?('SMTPUTF8'))
+      smtp.finish
+    end
+
     def test_rset
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, FakeSocket.new
@@ -85,12 +94,36 @@ module Net
       assert_equal "MAIL FROM:<foo@example.com>\r\n", sock.write_io.string
     end
 
+    def test_mailfrom_with_address
+      sock = FakeSocket.new
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      addr = Net::SMTP::Address.new("foo@example.com", size: 12345)
+      assert smtp.mailfrom(addr).success?
+      assert_equal "MAIL FROM:<foo@example.com> size=12345\r\n", sock.write_io.string
+    end
+
     def test_rcptto
       sock = FakeSocket.new
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
       assert smtp.rcptto("foo@example.com").success?
       assert_equal "RCPT TO:<foo@example.com>\r\n", sock.write_io.string
+    end
+
+    def test_rcptto_with_address
+      sock = FakeSocket.new
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      addr = Net::SMTP::Address.new("foo@example.com", nofty: :failure)
+      assert smtp.rcptto(addr).success?
+      assert_equal "RCPT TO:<foo@example.com> nofty=failure\r\n", sock.write_io.string
+    end
+
+    def test_address
+      a = Net::SMTP::Address.new('foo@example.com', 'p0=123', {p1: 456}, p2: nil, p3: '789')
+      assert_equal 'foo@example.com', a.address
+      assert_equal ['p0=123', 'p1=456', 'p2', 'p3=789'], a.parameters
     end
 
     def test_auth_plain
