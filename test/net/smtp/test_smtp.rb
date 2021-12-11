@@ -70,6 +70,15 @@ module Net
       assert_equal 'omg', smtp.esmtp?
     end
 
+    def test_server_capabilities
+      port = fake_server_start(starttls: true)
+      smtp = Net::SMTP.start('localhost', port, starttls: false)
+      assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
+      assert_equal(true, smtp.capable?('STARTTLS'))
+      assert_equal(false, smtp.capable?('SMTPUTF8'))
+      smtp.finish
+    end
+
     def test_rset
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, FakeSocket.new

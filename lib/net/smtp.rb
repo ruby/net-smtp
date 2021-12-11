@@ -274,11 +274,14 @@ module Net
       capable?('STARTTLS')
     end
 
+    # true if the EHLO response contains +key+.
     def capable?(key)
       return nil unless @capabilities
       @capabilities[key] ? true : false
     end
-    private :capable?
+
+    # The server capabilities by EHLO response
+    attr_reader :capabilities
 
     # true if server advertises AUTH PLAIN.
     # You cannot get valid value before opening SMTP session.
