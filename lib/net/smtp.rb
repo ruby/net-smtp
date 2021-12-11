@@ -251,6 +251,15 @@ module Net
       @ssl_context_params = ssl_context_params
     end
 
+    # If +true+, verify th server's certificate.
+    attr_accessor :tls_verify
+
+    # The hostname for verifying hostname in the server certificatate.
+    attr_accessor :tls_hostname
+
+    # Hash for additional SSLContext parameters.
+    attr_accessor :ssl_context_params
+
     # Provide human-readable stringification of class state.
     def inspect
       "#<#{self.class} #{@address}:#{@port} started=#{@started}>"
