@@ -1,6 +1,14 @@
 # NEWS
 
-## Version 0.3.0
+## Versoin 0.3.1 (2021-12-12)
+
+### Improvements
+
+* add Net::SMTP::Address.
+* add Net::SMTP#capable? and Net::SMTP#capabilities.
+* add Net::SMTP#tls_verify, Net::SMTP#tls_hostname, Net::SMTP#ssl_context_params
+
+## Version 0.3.0 (2021-10-14)
 
 ### Improvements
 
