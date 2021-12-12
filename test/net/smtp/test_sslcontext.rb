@@ -166,6 +166,22 @@ module Net
       assert_equal(true, smtp.rset.success?)
     end
 
+    def test_tls_verify_true_after_initialize
+      smtp = MySMTP.new(start_smtpd_starttls, tls_verify: false)
+      smtp.tls_verify = true
+      assert_raise(OpenSSL::SSL::SSLError) { smtp.start }
+      assert_equal(OpenSSL::X509::V_ERR_SELF_SIGNED_CERT_IN_CHAIN, smtp.__ssl_socket.verify_result)
+      assert_equal(OpenSSL::SSL::VERIFY_PEER, smtp.__ssl_context.verify_mode)
+    end
+
+    def test_tls_verify_false_after_initialize
+      smtp = MySMTP.new(start_smtpd_starttls, tls_verify: true)
+      smtp.tls_verify = false
+      smtp.start
+      assert_equal(OpenSSL::SSL::VERIFY_NONE, smtp.__ssl_context.verify_mode)
+      assert_equal(true, smtp.rset.success?)
+    end
+
     def test_start_with_tls_hostname
       smtp = MySMTP.new(start_smtpd_starttls, tls_hostname: "unexpected.example.com")
       context = default_ssl_context
@@ -184,8 +200,25 @@ module Net
       assert_equal(true, smtp.rset.success?)
     end
 
+    def test_tls_hostname_after_initialize
+      smtp = MySMTP.new(start_smtpd_starttls)
+      smtp.tls_hostname = "unexpected.example.com"
+      context = default_ssl_context
+      smtp.enable_starttls(context)
+      assert_raise(OpenSSL::SSL::SSLError) { smtp.start }
+      # TODO: Not all OpenSSL versions have the same verify_result code
+      assert_equal("unexpected.example.com", smtp.__ssl_socket.hostname)
+    end
+
     def test_start_with_ssl_context_params
       smtp = MySMTP.new(start_smtpd_starttls, ssl_context_params: {timeout: 123, verify_mode: OpenSSL::SSL::VERIFY_NONE})
+      smtp.start
+      assert_equal(123, smtp.__ssl_context.timeout)
+    end
+
+    def test_ssl_context_params_after_initialize
+      smtp = MySMTP.new(start_smtpd_starttls)
+      smtp.ssl_context_params = {timeout: 123, verify_mode: OpenSSL::SSL::VERIFY_NONE}
       smtp.start
       assert_equal(123, smtp.__ssl_context.timeout)
     end
