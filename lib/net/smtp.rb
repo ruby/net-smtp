@@ -1165,7 +1165,7 @@ module Net
     class Address
       # mail address [String]
       attr_reader :address
-      # paramters [Array<String>]
+      # parameters [Array<String>]
       attr_reader :parameters
 
       # :call-seq:
