@@ -35,8 +35,13 @@ module Net
     attr_reader :response
 
     def initialize(response, message: nil)
-      @response = response
-      @message = message
+      if response.is_a?(::Net::SMTP::Response)
+        @response = response
+        @message = message
+      else
+        @response = nil
+        @message = message || response 
+      end
     end
 
     def message
@@ -643,7 +648,7 @@ module Net
       do_helo helo_domain
       if ! tls? and (starttls_always? or (capable_starttls? and starttls_auto?))
         unless capable_starttls?
-          raise SMTPUnsupportedCommand.new(nil, message: "STARTTLS is not supported on this server")
+          raise SMTPUnsupportedCommand, "STARTTLS is not supported on this server"
         end
         starttls
         @socket = new_internet_message_io(tlsconnect(s, @ssl_context_starttls))
