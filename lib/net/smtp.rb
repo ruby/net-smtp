@@ -22,6 +22,7 @@ require 'timeout'
 begin
   require 'openssl'
 rescue LoadError
+  raise 'openssl library not installed'
 end
 
 module Net
@@ -340,7 +341,6 @@ module Net
     # this object.  Must be called before the connection is established
     # to have any effect.  +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_tls(context = nil)
-      raise 'openssl library not installed' unless defined?(OpenSSL::VERSION)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @starttls == :always
       @tls = true
       @ssl_context_tls = context
@@ -377,7 +377,6 @@ module Net
     # Enables SMTP/TLS (STARTTLS) for this object.
     # +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_starttls(context = nil)
-      raise 'openssl library not installed' unless defined?(OpenSSL::VERSION)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @tls
       @starttls = :always
       @ssl_context_starttls = context
@@ -386,7 +385,6 @@ module Net
     # Enables SMTP/TLS (STARTTLS) for this object if server accepts.
     # +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_starttls_auto(context = nil)
-      raise 'openssl library not installed' unless defined?(OpenSSL::VERSION)
       raise ArgumentError, "SMTPS and STARTTLS is exclusive" if @tls
       @starttls = :auto
       @ssl_context_starttls = context
