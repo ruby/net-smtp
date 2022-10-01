@@ -19,7 +19,6 @@
 
 require 'net/protocol'
 require 'digest/md5'
-require 'timeout'
 begin
   require 'openssl'
 rescue LoadError
