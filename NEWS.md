@@ -1,6 +1,10 @@
 # NEWS
 
-## Versoin 0.3.1 (2021-12-12)
+## Version 0.3.2 (2022-09-28)
+
+* Make exception API compatible with what Ruby expects <https://github.com/ruby/net-smtp/pull/42>
+
+## Version 0.3.1 (2021-12-12)
 
 ### Improvements
 
