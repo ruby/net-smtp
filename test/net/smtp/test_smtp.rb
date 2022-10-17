@@ -44,7 +44,7 @@ module Net
     end
 
     def teardown
-      @server_threads.each {|th| th.join }
+      @server_threads.each {|th| th.kill; th.join }
     end
 
     def test_critical
@@ -71,11 +71,19 @@ module Net
     end
 
     def test_server_capabilities
-      port = fake_server_start(starttls: true)
-      smtp = Net::SMTP.start('localhost', port, starttls: false)
-      assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
-      assert_equal(true, smtp.capable?('STARTTLS'))
-      assert_equal(false, smtp.capable?('SMTPUTF8'))
+      if defined? OpenSSL
+        port = fake_server_start(starttls: true)
+        smtp = Net::SMTP.start('localhost', port, starttls: false)
+        assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
+        assert_equal(true, smtp.capable?('STARTTLS'))
+        assert_equal(false, smtp.capable?('SMTPUTF8'))
+      else
+        port = fake_server_start
+        smtp = Net::SMTP.start('localhost', port, starttls: false)
+        assert_equal({"AUTH"=>["PLAIN"]}, smtp.capabilities)
+        assert_equal(false, smtp.capable?('STARTTLS'))
+        assert_equal(false, smtp.capable?('SMTPUTF8'))
+      end
       smtp.finish
     end
 
@@ -320,57 +328,63 @@ module Net
       end
     end
 
-    if defined? OpenSSL::VERSION
-      def test_with_tls
-        port = fake_server_start(tls: true)
-        smtp = Net::SMTP.new('localhost', port, tls: true, tls_verify: false)
-        assert_nothing_raised do
-          smtp.start{}
-        end
+    def test_with_tls
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-        port = fake_server_start(tls: false)
-        smtp = Net::SMTP.new('localhost', port, tls: false)
-        assert_nothing_raised do
-          smtp.start{}
-        end
+      port = fake_server_start(tls: true)
+      smtp = Net::SMTP.new('localhost', port, tls: true, tls_verify: false)
+      assert_nothing_raised do
+        smtp.start{}
       end
 
-      def test_with_starttls_always
-        port = fake_server_start(starttls: true)
-        smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+      port = fake_server_start(tls: false)
+      smtp = Net::SMTP.new('localhost', port, tls: false)
+      assert_nothing_raised do
         smtp.start{}
-        assert_equal(true, @starttls_started)
-
-        port = fake_server_start(starttls: false)
-        smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
-        assert_raise Net::SMTPUnsupportedCommand do
-          smtp.start{}
-        end
       end
+    end
 
-      def test_with_starttls_auto
-        port = fake_server_start(starttls: true)
-        smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
-        smtp.start{}
-        assert_equal(true, @starttls_started)
+    def test_with_starttls_always
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-        port = fake_server_start(starttls: false)
-        smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+      port = fake_server_start(starttls: true)
+      smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+      smtp.start{}
+      assert_equal(true, @starttls_started)
+
+      port = fake_server_start(starttls: false)
+      smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+      assert_raise Net::SMTPUnsupportedCommand do
         smtp.start{}
-        assert_equal(false, @starttls_started)
       end
+    end
 
-      def test_with_starttls_false
-        port = fake_server_start(starttls: true)
-        smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
-        smtp.start{}
-        assert_equal(false, @starttls_started)
+    def test_with_starttls_auto
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-        port = fake_server_start(starttls: false)
-        smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
-        smtp.start{}
-        assert_equal(false, @starttls_started)
-      end
+      port = fake_server_start(starttls: true)
+      smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+      smtp.start{}
+      assert_equal(true, @starttls_started)
+
+      port = fake_server_start(starttls: false)
+      smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+      smtp.start{}
+      assert_equal(false, @starttls_started)
+    end
+
+    def test_with_starttls_false
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
+
+      port = fake_server_start(starttls: true)
+      smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
+      smtp.start{}
+      assert_equal(false, @starttls_started)
+
+      port = fake_server_start(starttls: false)
+      smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
+      smtp.start{}
+      assert_equal(false, @starttls_started)
     end
 
     def test_start
@@ -404,49 +418,110 @@ module Net
       assert_equal('wrong number of arguments (given 7, expected 1..6)', err.message)
     end
 
-    if defined? OpenSSL::VERSION
-      def test_start_with_tls
-        port = fake_server_start(tls: true)
-        assert_nothing_raised do
-          Net::SMTP.start('localhost', port, tls: true, tls_verify: false){}
-        end
+    def test_start_with_tls
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-        port = fake_server_start(tls: false)
-        assert_nothing_raised do
-          Net::SMTP.start('localhost', port, tls: false){}
-        end
+      port = fake_server_start(tls: true)
+      assert_nothing_raised do
+        Net::SMTP.start('localhost', port, tls: true, tls_verify: false){}
       end
 
-      def test_start_with_starttls_always
-        port = fake_server_start(starttls: true)
+      port = fake_server_start(tls: false)
+      assert_nothing_raised do
+        Net::SMTP.start('localhost', port, tls: false){}
+      end
+    end
+
+    def test_start_with_starttls_always
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
+
+      port = fake_server_start(starttls: true)
+      Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
+      assert_equal(true, @starttls_started)
+
+      port = fake_server_start(starttls: false)
+      assert_raise Net::SMTPUnsupportedCommand do
         Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
-        assert_equal(true, @starttls_started)
+      end
+    end
 
-        port = fake_server_start(starttls: false)
-        assert_raise Net::SMTPUnsupportedCommand do
-          Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
-        end
+    def test_start_with_starttls_auto
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
+
+      port = fake_server_start(starttls: true)
+      Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
+      assert_equal(true, @starttls_started)
+
+      port = fake_server_start(starttls: false)
+      Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
+      assert_equal(false, @starttls_started)
+    end
+
+    def test_start_with_starttls_false
+      omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
+
+      port = fake_server_start(starttls: true)
+      Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
+      assert_equal(false, @starttls_started)
+
+      port = fake_server_start(starttls: false)
+      Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
+      assert_equal(false, @starttls_started)
+    end
+
+    def test_start_auth_plain
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
+
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      assert_raise Net::SMTPAuthenticationError do
+        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :plain){}
       end
 
-      def test_start_with_starttls_auto
-        port = fake_server_start(starttls: true)
-        Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
-        assert_equal(true, @starttls_started)
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      assert_raise Net::SMTPAuthenticationError do
+        Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
+      end
+    end
 
-        port = fake_server_start(starttls: false)
-        Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
-        assert_equal(false, @starttls_started)
+    def test_start_auth_login
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
+
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      assert_raise Net::SMTPAuthenticationError do
+        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :login){}
       end
 
-      def test_start_with_starttls_false
-        port = fake_server_start(starttls: true)
-        Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
-        assert_equal(false, @starttls_started)
-
-        port = fake_server_start(starttls: false)
-        Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
-        assert_equal(false, @starttls_started)
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      assert_raise Net::SMTPAuthenticationError do
+        Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
       end
+    end
+
+    def test_start_auth_cram_md5
+      omit "openssl or digest library not loaded" unless defined? OpenSSL or defined? Digest
+
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
+
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      assert_raise Net::SMTPAuthenticationError do
+        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :cram_md5){}
+      end
+
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      assert_raise Net::SMTPAuthenticationError do
+        Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
+      end
+
+      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.define_singleton_method(:digest_class) { raise '"openssl" or "digest" library is required' }
+      e = assert_raise RuntimeError do
+        smtp.start(user: 'account', password: 'password', authtype: :cram_md5){}
+      end
+      assert_equal('"openssl" or "digest" library is required', e.message)
     end
 
     def test_start_instance
@@ -491,7 +566,7 @@ module Net
       Socket.accept_loop(servers) { |s, _| break s }
     end
 
-    def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false)
+    def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false, authtype: 'PLAIN')
       @starttls_started = false
       servers = Socket.tcp_server_sockets('localhost', 0)
       @server_threads << Thread.start do
@@ -515,7 +590,7 @@ module Net
             assert_equal(helo, comm.split[1])
             sock.puts "220-servername\r\n"
             sock.puts "220-STARTTLS\r\n" if starttls
-            sock.puts "220 AUTH PLAIN\r\n"
+            sock.puts "220 AUTH #{authtype}\r\n"
           when "STARTTLS"
             unless starttls
               sock.puts "502 5.5.1 Error: command not implemented\r\n"
@@ -526,14 +601,36 @@ module Net
             sock.sync_close = true
             sock.accept
             @starttls_started = true
-          when /\AAUTH PLAIN /
+          when /\AAUTH /
             unless user
               sock.puts "503 5.5.1 Error: authentication not enabled\r\n"
               next
             end
-            credential = ["\0#{user}\0#{password}"].pack('m0')
-            assert_equal(credential, comm.split[2])
-            sock.puts "235 2.7.0 Authentication successful\r\n"
+            _, type, arg = comm.split
+            unless authtype.split.map(&:upcase).include? type.upcase
+              sock.puts "535 5.7.8 Error: authentication failed: no mechanism available\r\n"
+              next
+            end
+            # The account and password are fixed to "account" and "password".
+            result = case type
+                     when 'PLAIN'
+                       arg == 'AGFjY291bnQAcGFzc3dvcmQ='
+                     when 'LOGIN'
+                       sock.puts '334 VXNlcm5hbWU6'
+                       u = sock.gets.unpack1('m')
+                       sock.puts '334 UGFzc3dvcmQ6'
+                       p = sock.gets.unpack1('m')
+                       u == 'account' && p == 'password'
+                     when 'CRAM-MD5'
+                       sock.puts "334 PDEyMzQ1Njc4OTAuMTIzNDVAc2VydmVybmFtZT4=\r\n"
+                       r = sock.gets&.chomp
+                       r == 'YWNjb3VudCAyYzBjMTgxZjkxOGU2ZGM5Mjg3Zjk3N2E1ODhiMzg1YQ=='
+                     end
+            if result
+              sock.puts "235 2.7.0 Authentication successful\r\n"
+            else
+              sock.puts "535 5.7.8 Error: authentication failed: authentication failure\r\n"
+            end
           when "QUIT"
             sock.puts "221 2.0.0 Bye\r\n"
             sock.close
