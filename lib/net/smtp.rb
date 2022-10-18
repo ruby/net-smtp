@@ -18,10 +18,13 @@
 #
 
 require 'net/protocol'
-require 'digest/md5'
 begin
   require 'openssl'
 rescue LoadError
+  begin
+    require 'digest/md5'
+  rescue LoadError
+  end
 end
 
 module Net
@@ -625,6 +628,16 @@ module Net
 
     private
 
+    def digest_class
+      @digest_class ||= if defined?(OpenSSL::Digest)
+                          OpenSSL::Digest
+                        elsif defined?(::Digest)
+                          ::Digest
+                        else
+                          raise '"openssl" or "digest" library is required'
+                        end
+    end
+
     def tcp_socket(address, port)
       begin
         Socket.tcp address, port, nil, nil, connect_timeout: @open_timeout
@@ -887,14 +900,14 @@ module Net
 
     # CRAM-MD5: [RFC2195]
     def cram_md5_response(secret, challenge)
-      tmp = Digest::MD5.digest(cram_secret(secret, IMASK) + challenge)
-      Digest::MD5.hexdigest(cram_secret(secret, OMASK) + tmp)
+      tmp = digest_class::MD5.digest(cram_secret(secret, IMASK) + challenge)
+      digest_class::MD5.hexdigest(cram_secret(secret, OMASK) + tmp)
     end
 
     CRAM_BUFSIZE = 64
 
     def cram_secret(secret, mask)
-      secret = Digest::MD5.digest(secret) if secret.size > CRAM_BUFSIZE
+      secret = digest_class::MD5.digest(secret) if secret.size > CRAM_BUFSIZE
       buf = secret.ljust(CRAM_BUFSIZE, "\0")
       0.upto(buf.size - 1) do |i|
         buf[i] = (buf[i].ord ^ mask).chr
