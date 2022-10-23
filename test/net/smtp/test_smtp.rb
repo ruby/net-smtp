@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'net/smtp'
 require 'stringio'
 require 'test/unit'
@@ -12,12 +13,12 @@ module Net
     class FakeSocket
       attr_reader :write_io
 
-      def initialize out = "250 OK\n"
+      def initialize(out = "250 OK\n")
         @write_io = StringIO.new
         @read_io  = StringIO.new out
       end
 
-      def writeline line
+      def writeline(line)
         @write_io.write "#{line}\r\n"
       end
 
@@ -32,19 +33,22 @@ module Net
       # Avoid hanging at fake_server_start's IO.select on --jit-wait CI like http://ci.rvm.jp/results/trunk-mjit-wait@phosphorus-docker/3302796
       # Unfortunately there's no way to configure read_timeout for Net::SMTP.start.
       if defined?(RubyVM::JIT) && RubyVM::JIT.enabled?
-        Net::SMTP.prepend Module.new {
+        Net::SMTP.prepend(Module.new {
           def initialize(*)
             super
             @read_timeout *= 5
           end
-        }
+        })
       end
 
       @server_threads = []
     end
 
     def teardown
-      @server_threads.each {|th| th.kill; th.join }
+      @server_threads.each do |th|
+        th.kill
+        th.join
+      end
     end
 
     def test_critical
@@ -74,13 +78,13 @@ module Net
       if defined? OpenSSL
         port = fake_server_start(starttls: true)
         smtp = Net::SMTP.start('localhost', port, starttls: false)
-        assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
+        assert_equal({"STARTTLS" => [], "AUTH" => ["PLAIN"]}, smtp.capabilities)
         assert_equal(true, smtp.capable?('STARTTLS'))
         assert_equal(false, smtp.capable?('SMTPUTF8'))
       else
         port = fake_server_start
         smtp = Net::SMTP.start('localhost', port, starttls: false)
-        assert_equal({"AUTH"=>["PLAIN"]}, smtp.capabilities)
+        assert_equal({"AUTH" => ["PLAIN"]}, smtp.capabilities)
         assert_equal(false, smtp.capable?('STARTTLS'))
         assert_equal(false, smtp.capable?('SMTPUTF8'))
       end
@@ -322,7 +326,7 @@ module Net
         assert_equal(EOFError, e.class, bug13018)
         assert(e.backtrace.grep(%r"\bnet/smtp\.rb:").size > 0, bug13018)
       ensure
-        sock.close if sock
+        sock&.close
         servers.each(&:close)
         t.join
       end
@@ -394,19 +398,19 @@ module Net
     end
 
     def test_start_with_position_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(helo: 'myname')
       smtp = Net::SMTP.start('localhost', port, 'myname', 'account', 'password', :plain)
       smtp.finish
     end
 
     def test_start_with_keyword_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(helo: 'myname')
       smtp = Net::SMTP.start('localhost', port, helo: 'myname', user: 'account', secret: 'password', authtype: :plain)
       smtp.finish
     end
 
     def test_start_password_is_secret
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(helo: 'myname')
       smtp = Net::SMTP.start('localhost', port, helo: 'myname', user: 'account', password: 'password', authtype: :plain)
       smtp.finish
     end
@@ -470,30 +474,30 @@ module Net
     end
 
     def test_start_auth_plain
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(authtype: 'PLAIN')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(authtype: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :plain){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      port = fake_server_start(authtype: 'LOGIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
       end
     end
 
     def test_start_auth_login
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      port = fake_server_start(authtype: 'LOGIN')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      port = fake_server_start(authtype: 'LOGIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :login){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(authtype: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
       end
@@ -502,20 +506,20 @@ module Net
     def test_start_auth_cram_md5
       omit "openssl or digest library not loaded" unless defined? OpenSSL or defined? Digest
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      port = fake_server_start(authtype: 'CRAM-MD5')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      port = fake_server_start(authtype: 'CRAM-MD5')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :cram_md5){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(authtype: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      port = fake_server_start(authtype: 'CRAM-MD5')
       smtp = Net::SMTP.new('localhost', port)
       smtp.define_singleton_method(:digest_class) { raise '"openssl" or "digest" library is required' }
       e = assert_raise RuntimeError do
@@ -532,21 +536,21 @@ module Net
     end
 
     def test_start_instance_with_position_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(helo: 'myname')
       smtp = Net::SMTP.new('localhost', port)
       smtp.start('myname', 'account', 'password', :plain)
       smtp.finish
     end
 
     def test_start_instance_with_keyword_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(helo: 'myname')
       smtp = Net::SMTP.new('localhost', port)
       smtp.start(helo: 'myname', user: 'account', secret: 'password', authtype: :plain)
       smtp.finish
     end
 
     def test_start_instance_password_is_secret
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(helo: 'myname')
       smtp = Net::SMTP.new('localhost', port)
       smtp.start(helo: 'myname', user: 'account', password: 'password', authtype: :plain)
       smtp.finish
@@ -566,7 +570,7 @@ module Net
       Socket.accept_loop(servers) { |s, _| break s }
     end
 
-    def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false, authtype: 'PLAIN')
+    def fake_server_start(helo: 'localhost', tls: false, starttls: false, authtype: 'PLAIN')
       @starttls_started = false
       servers = Socket.tcp_server_sockets('localhost', 0)
       @server_threads << Thread.start do
@@ -584,7 +588,7 @@ module Net
           sock.accept
         end
         sock.puts "220 ready\r\n"
-        while comm = sock.gets
+        while (comm = sock.gets)
           case comm.chomp
           when /\AEHLO /
             assert_equal(helo, comm.split[1])
@@ -602,10 +606,6 @@ module Net
             sock.accept
             @starttls_started = true
           when /\AAUTH /
-            unless user
-              sock.puts "503 5.5.1 Error: authentication not enabled\r\n"
-              next
-            end
             _, type, arg = comm.split
             unless authtype.split.map(&:upcase).include? type.upcase
               sock.puts "535 5.7.8 Error: authentication failed: no mechanism available\r\n"

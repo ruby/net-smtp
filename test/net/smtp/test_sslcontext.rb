@@ -48,7 +48,8 @@ module Net
       ctx.add_certificate(
         OpenSSL::X509::Certificate.new(File.read(SERVER_CERT)),
         OpenSSL::PKey.read(File.read(SERVER_KEY)),
-        [OpenSSL::X509::Certificate.new(File.read(CA_FILE))])
+        [OpenSSL::X509::Certificate.new(File.read(CA_FILE))]
+      )
       sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
       sock.sync_close = true
       sock.accept
@@ -61,7 +62,7 @@ module Net
         UNIXSocket.pair : Socket.pair(:INET, :STREAM, 0)
       @server_thread = Thread.new(@server_socket) do |s|
         s.puts "220 fakeserver\r\n"
-        while cmd = s.gets&.chomp
+        while (cmd = s.gets&.chomp)
           case cmd
           when /\AEHLO /
             s.puts "250-fakeserver\r\n"
@@ -86,7 +87,7 @@ module Net
       @server_thread = Thread.new(@server_socket) do |s|
         s = wrap_ssl_socket(s) or break
         s.puts "220 fakeserver\r\n"
-        while cmd = s.gets&.chomp
+        while (cmd = s.gets&.chomp)
           case cmd
           when /\AEHLO /
             s.puts "250-fakeserver\r\n"

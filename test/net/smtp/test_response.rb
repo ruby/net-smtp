@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'net/smtp'
 require 'test/unit'
 
@@ -9,7 +10,7 @@ module Net
         res = Response.parse("250-ubuntu-desktop\n250-PIPELINING\n250-SIZE 10240000\n250-VRFY\n250-ETRN\n250-STARTTLS\n250-ENHANCEDSTATUSCODES\n250 DSN\n")
 
         capabilities = res.capabilities
-        %w{ PIPELINING SIZE VRFY STARTTLS ENHANCEDSTATUSCODES DSN}.each do |str|
+        %w{PIPELINING SIZE VRFY STARTTLS ENHANCEDSTATUSCODES DSN}.each do |str|
           assert capabilities.key?(str), str
         end
       end

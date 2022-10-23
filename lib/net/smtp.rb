@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 # = net/smtp.rb
 #
 # Copyright (c) 1999-2007 Yukihiro Matsumoto.
@@ -24,11 +25,11 @@ rescue LoadError
   begin
     require 'digest/md5'
   rescue LoadError
+    # ignore error
   end
 end
 
 module Net
-
   # Module mixed in to all SMTP error classes
   module SMTPError
     # This *class* is a module for backward compatibility.
@@ -42,7 +43,7 @@ module Net
         @message = message
       else
         @response = nil
-        @message = message || response 
+        @message = message || response
       end
     end
 
@@ -188,7 +189,7 @@ module Net
   class SMTP < Protocol
     VERSION = "0.3.2"
 
-    Revision = %q$Revision$.split[1]
+    Revision = "Revision".split[1]
 
     # The default SMTP port number, 25.
     def SMTP.default_port
@@ -211,7 +212,7 @@ module Net
 
     def SMTP.default_ssl_context(ssl_context_params = nil)
       context = OpenSSL::SSL::SSLContext.new
-      context.set_params(ssl_context_params ? ssl_context_params : {})
+      context.set_params(ssl_context_params || {})
       context
     end
 
@@ -641,9 +642,9 @@ module Net
     def tcp_socket(address, port)
       begin
         Socket.tcp address, port, nil, nil, connect_timeout: @open_timeout
-      rescue Errno::ETIMEDOUT #raise Net:OpenTimeout instead for compatibility with previous versions
-        raise Net::OpenTimeout, "Timeout to open TCP connection to "\
-          "#{address}:#{port} (exceeds #{@open_timeout} seconds)"
+      rescue Errno::ETIMEDOUT # raise Net:OpenTimeout instead for compatibility with previous versions
+        raise Net::OpenTimeout, "Timeout to open TCP connection to " \
+                                "#{address}:#{port} (exceeds #{@open_timeout} seconds)"
       end
     end
 
@@ -656,7 +657,7 @@ module Net
       s = tcp_socket(@address, @port)
       logging "Connection opened: #{@address}:#{@port}"
       @socket = new_internet_message_io(tls? ? tlsconnect(s, @ssl_context_tls) : s)
-      check_response critical { recv_response() }
+      check_response(critical { recv_response() })
       do_helo helo_domain
       if ! tls? and (starttls_always? or (capable_starttls? and starttls_auto?))
         unless capable_starttls?
@@ -672,7 +673,7 @@ module Net
     ensure
       unless @started
         # authentication failed, cancel connection.
-        s.close if s
+        s&.close
         @socket = nil
       end
     end
@@ -695,8 +696,7 @@ module Net
     end
 
     def new_internet_message_io(s)
-      InternetMessageIO.new(s, read_timeout: @read_timeout,
-                            debug_output: @debug_output)
+      InternetMessageIO.new(s, read_timeout: @read_timeout, debug_output: @debug_output)
     end
 
     def do_helo(helo_domain)
@@ -716,7 +716,7 @@ module Net
     ensure
       @started = false
       @error_occurred = false
-      @socket.close if @socket
+      @socket&.close
       @socket = nil
     end
 
@@ -827,8 +827,6 @@ module Net
     # Authentication
     #
 
-    public
-
     DEFAULT_AUTH_TYPE = :plain
 
     def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
@@ -881,7 +879,7 @@ module Net
       "auth_#{type.to_s.downcase}".intern
     end
 
-    def check_auth_args(user, secret, authtype = DEFAULT_AUTH_TYPE)
+    def check_auth_args(user, secret)
       unless user
         raise ArgumentError, 'SMTP-AUTH requested but missing user name'
       end
@@ -995,7 +993,7 @@ module Net
     #     f.puts "Check vm.c:58879."
     #   }
     #
-    def data(msgstr = nil, &block)   #:yield: stream
+    def data(msgstr = nil, &block)   # :yield: stream
       if msgstr and block
         raise ArgumentError, "message and block are exclusive"
       end
@@ -1056,7 +1054,7 @@ module Net
       while true
         line = @socket.readline
         buf << line << "\n"
-        break unless line[3,1] == '-'   # "210-PIPELINING"
+        break unless line[3, 1] == '-'   # "210-PIPELINING"
       end
       Response.parse(buf)
     end
@@ -1073,7 +1071,7 @@ module Net
 
     def check_response(res)
       unless res.success?
-        raise res.exception_class.new(res)
+        raise res.exception_class.new(res)  # rubocop:disable Style/RaiseArgs
       end
     end
 
@@ -1085,13 +1083,13 @@ module Net
 
     def check_auth_response(res)
       unless res.success?
-        raise SMTPAuthenticationError.new(res)
+        raise SMTPAuthenticationError.new(res)  # rubocop:disable Style/RaiseArgs
       end
     end
 
     def check_auth_continue(res)
       unless res.continue?
-        raise res.exception_class.new(res)
+        raise res.exception_class.new(res)  # rubocop:disable Style/RaiseArgs
       end
     end
 
@@ -1103,7 +1101,7 @@ module Net
       # Parses the received response and separates the reply code and the human
       # readable reply text
       def self.parse(str)
-        new(str[0,3], str)
+        new(str[0, 3], str)
       end
 
       # Creates a new instance of the Response class and sets the status and
@@ -1155,7 +1153,7 @@ module Net
         return {} unless @string[3, 1] == '-'
         h = {}
         @string.lines.drop(1).each do |line|
-          k, *v = line[4..-1].split(' ')
+          k, *v = line[4..-1].split
           h[k] = v
         end
         h
@@ -1175,7 +1173,7 @@ module Net
     end
 
     def logging(msg)
-      @debug_output << msg + "\n" if @debug_output
+      @debug_output << (msg + "\n") if @debug_output
     end
 
     # Address with parametres for MAIL or RCPT command
@@ -1204,9 +1202,7 @@ module Net
         @address
       end
     end
-
   end   # class SMTP
 
   SMTPSession = SMTP # :nodoc:
-
 end

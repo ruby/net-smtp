@@ -1,4 +1,109 @@
-inherit_from: .rubocop_todo.yml
-
 AllCops:
   NewCops: enable
+  TargetRubyVersion: 2.6.0
+
+Layout/SpaceBeforeBlockBraces:
+  Enabled: false
+Layout/EmptyLineAfterGuardClause:
+  Enabled: false
+Layout/LineLength:
+  Enabled: false
+Layout/ExtraSpacing:
+  AllowBeforeTrailingComments: true
+Layout/SpaceAfterNot:
+  Enabled: false
+Layout/SpaceInsideBlockBraces:
+  Enabled: false
+Layout/SpaceInsideHashLiteralBraces:
+  Enabled: false
+
+Lint/EmptyBlock:
+  Exclude:
+    - test/**/*
+Lint/MissingSuper:
+  Enabled: false
+Lint/RescueException:
+  Enabled: false
+
+Metrics:
+  Exclude:
+    - test/**/*
+Metrics/AbcSize:
+  Max: 30
+Metrics/BlockLength:
+  Exclude:
+    - test/**/*
+Metrics/ClassLength:
+  Enabled: false
+Metrics/CyclomaticComplexity:
+  Max: 17
+Metrics/MethodLength:
+  Max: 28
+Metrics/ParameterLists:
+  Max: 13
+Metrics/PerceivedComplexity:
+  Max: 18
+
+Naming/MethodParameterName:
+  Enabled: false
+
+Style/AccessModifierDeclarations:
+  Enabled: false
+Style/Alias:
+  Enabled: false
+Style/AndOr:
+  Enabled: false
+Style/BlockDelimiters:
+  Enabled: false
+Style/ClassCheck:
+  Enabled: false
+Style/ClassMethods:
+  Enabled: false
+Style/CommentedKeyword:
+  Enabled: false
+Style/FrozenStringLiteralComment:
+  Enabled: false
+Style/GuardClause:
+  Enabled: false
+Style/HashSyntax:
+  Exclude:
+    - 'Rakefile'
+Style/IdenticalConditionalBranches:
+  Exclude:
+    - test/**/*
+Style/IfUnlessModifier:
+  Enabled: false
+Style/InfiniteLoop:
+  Enabled: false
+Style/MethodCallWithoutArgsParentheses:
+  Enabled: false
+Style/MultilineTernaryOperator:
+  Enabled: false
+Style/Not:
+  Enabled: false
+Style/NumericLiterals:
+  Enabled: false
+Style/NumericPredicate:
+  Enabled: false
+Style/PercentLiteralDelimiters:
+  Enabled: false
+Style/PerlBackrefs:
+  Enabled: false
+Style/PreferredHashMethods:
+  Enabled: false
+Style/RedundantBegin:
+  Enabled: false
+Style/RedundantReturn:
+  Enabled: false
+Style/RescueModifier:
+  Enabled: false
+Style/SlicingWithRange:
+  Enabled: false
+Style/StringConcatenation:
+  Enabled: false
+Style/StringLiterals:
+  Enabled: false
+Style/TrivialAccessors:
+  Enabled: false
+Style/ZeroLengthPredicate:
+  Enabled: false

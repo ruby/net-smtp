@@ -35,7 +35,7 @@ module Net
       @starttls_executed = false
       @server_thread = Thread.new(@server_socket) do |s|
         s.puts "220 fakeserver\r\n"
-        while cmd = s.gets&.chomp
+        while (cmd = s.gets&.chomp)
           case cmd
           when /\AEHLO /
             s.puts "250-fakeserver\r\n"
