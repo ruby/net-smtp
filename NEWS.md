@@ -1,5 +1,10 @@
 # NEWS
 
+## Version 0.3.3 (2022-10-29)
+
+* No timeout library required <https://github.com/ruby/net-smtp/pull/44>
+* Make the digest library optional <https://github.com/ruby/net-smtp/pull/45>
+
 ## Version 0.3.2 (2022-09-28)
 
 * Make exception API compatible with what Ruby expects <https://github.com/ruby/net-smtp/pull/42>
