@@ -857,6 +857,20 @@ module Net
       res
     end
 
+    def auth_xoauth2(user, oauth2_token)
+      check_auth_args user, oauth2_token
+
+      auth_string = build_oauth2_string(user, oauth2_token)
+      res = send_xoauth2(base64_encode(auth_string))
+
+      if res.continue?
+        res = get_final_status
+      end
+      
+      check_auth_response res
+      res
+    end
+
     def auth_cram_md5(user, secret)
       check_auth_args user, secret
       res = critical {
@@ -913,6 +927,22 @@ module Net
         buf[i] = (buf[i].ord ^ mask).chr
       end
       buf
+    end
+
+    def send_xoauth2(auth_token)
+      critical {
+        get_response("AUTH XOAUTH2 #{auth_token}")
+      }
+    end
+
+    def build_oauth2_string(user, oauth2_token)
+      "user=%s\1auth=Bearer %s\1\1".encode("us-ascii") % [user, oauth2_token]
+    end
+
+    def get_final_status
+      critical {
+        get_response("")
+      }
     end
 
     #

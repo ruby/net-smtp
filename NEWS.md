@@ -1,4 +1,9 @@
 # NEWS
+## Unreleased
+
+### Improvements
+
+* Add XOAUTH2 authenticator <https://github.com/ruby/net-smtp/pull/47>
 
 ## Version 0.3.3 (2022-10-29)
 

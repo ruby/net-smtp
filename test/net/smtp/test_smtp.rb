@@ -151,6 +151,23 @@ module Net
       assert_equal "535", err.response.status
     end
 
+    def test_auth_xoauth2
+      sock = FakeSocket.new("235 2.7.0 Authentication successful\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      assert smtp.auth_xoauth2("foo", "bar").success?
+      assert_equal "AUTH XOAUTH2 dXNlcj1mb28BYXV0aD1CZWFyZXIgYmFyAQE=\r\n", sock.write_io.string
+    end
+
+    def test_unsucessful_auth_xoauth2
+      sock = FakeSocket.new("535 5.7.8 BadCredentials\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.auth_xoauth2("foo", "bar") }
+      assert_equal "535 5.7.8 BadCredentials\n", err.message
+      assert_equal "535", err.response.status
+    end
+
     def test_auth_login
       sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n235 2.7.0 Authentication successful\r\n")
       smtp = Net::SMTP.new 'localhost', 25
