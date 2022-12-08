@@ -936,7 +936,7 @@ module Net
     end
 
     def build_oauth2_string(user, oauth2_token)
-      "user=%s\1auth=Bearer %s\1\1".encode("us-ascii") % [user, oauth2_token]
+      format("user=%s\1auth=Bearer %s\1\1", user, oauth2_token)
     end
 
     def get_final_status
