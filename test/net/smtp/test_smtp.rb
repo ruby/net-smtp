@@ -76,13 +76,13 @@ module Net
         smtp = Net::SMTP.start('localhost', port, starttls: false)
         assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
         assert_equal(true, smtp.capable?('STARTTLS'))
-        assert_equal(false, smtp.capable?('SMTPUTF8'))
+        assert_equal(false, smtp.capable?('DOES-NOT-EXIST'))
       else
         port = fake_server_start
         smtp = Net::SMTP.start('localhost', port, starttls: false)
         assert_equal({"AUTH"=>["PLAIN"]}, smtp.capabilities)
         assert_equal(false, smtp.capable?('STARTTLS'))
-        assert_equal(false, smtp.capable?('SMTPUTF8'))
+        assert_equal(false, smtp.capable?('DOES-NOT-EXIST'))
       end
       smtp.finish
     end
