@@ -1196,8 +1196,9 @@ module Net
           @parameters = address.parameters
         else
           @address = address
-          @parameters = (args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}
+          @parameters = []
         end
+        @parameters = (parameters + args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}
       end
 
       def to_s
