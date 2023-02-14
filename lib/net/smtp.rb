@@ -639,12 +639,7 @@ module Net
     end
 
     def tcp_socket(address, port)
-      begin
-        Socket.tcp address, port, nil, nil, connect_timeout: @open_timeout
-      rescue Errno::ETIMEDOUT #raise Net:OpenTimeout instead for compatibility with previous versions
-        raise Net::OpenTimeout, "Timeout to open TCP connection to "\
-          "#{address}:#{port} (exceeds #{@open_timeout} seconds)"
-      end
+      TCPSocket.open address, port
     end
 
     def do_start(helo_domain, user, secret, authtype)
@@ -653,7 +648,9 @@ module Net
         check_auth_method(authtype || DEFAULT_AUTH_TYPE)
         check_auth_args user, secret
       end
-      s = tcp_socket(@address, @port)
+      s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
+        tcp_socket(@address, @port)
+      end
       logging "Connection opened: #{@address}:#{@port}"
       @socket = new_internet_message_io(tls? ? tlsconnect(s, @ssl_context_tls) : s)
       check_response critical { recv_response() }
