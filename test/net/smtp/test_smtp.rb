@@ -573,7 +573,9 @@ module Net
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
-        conn.send_message "test", "me@example.org", ["-you@example.net", "friend@example.net"]
+        assert_raise Net::SMTPSyntaxError do
+          conn.send_message "test", "me@example.org", ["you@example.net", "-friend@example.net"]
+        end
       end
     end
 
