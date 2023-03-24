@@ -577,6 +577,7 @@ module Net
 
     def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false, authtype: 'PLAIN')
       @starttls_started = false
+      @recipients = []
       servers = Socket.tcp_server_sockets('localhost', 0)
       @server_threads << Thread.start do
         Thread.current.abort_on_exception = true
@@ -648,6 +649,7 @@ module Net
             elsif $1.start_with? "~"
               sock.puts "400 4.0.0 Try again\r\n"
             else
+              @recipients << $1
               sock.puts "250 2.1.5 Okay\r\n"
             end
           when "DATA"
