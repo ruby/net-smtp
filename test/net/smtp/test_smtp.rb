@@ -639,6 +639,23 @@ module Net
             else
               sock.puts "535 5.7.8 Error: authentication failed: authentication failure\r\n"
             end
+          when /\AMAIL FROM: *<.*>/
+            sock.puts "250 2.1.0 Okay\r\n"
+          when /\ARCPT TO: *<(.*)>/
+            if $1.start_with? "-"
+              sock.puts "501 5.1.3 Bad recipient address syntax\r\n"
+            elsif $1.start_with? "~"
+              sock.puts "400 4.0.0 Try again\r\n"
+            else
+              sock.puts "250 2.1.5 Okay\r\n"
+            end
+          when "DATA"
+            sock.puts "354 Continue (finish with dot)\r\n"
+            loop do
+              line = sock.gets
+              break if line == ".\r\n"
+            end
+            sock.puts "250 2.6.0 Okay\r\n"
           when "QUIT"
             sock.puts "221 2.0.0 Bye\r\n"
             sock.close
