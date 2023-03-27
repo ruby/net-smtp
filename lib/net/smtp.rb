@@ -66,8 +66,13 @@ module Net
     include SMTPError
   end
 
-  # Represents a fatal SMTP error (error code 5xx, except for 500 and 53x)
+  # Represents a fatal SMTP error (error code 5xx, except for 500, 53x, and 55x)
   class SMTPFatalError < ProtoFatalError
+    include SMTPError
+  end
+
+  # Represents a fatal SMTP error pertaining to the mailbox (error code 55x)
+  class SMTPMailboxPermanentlyUnavailable < ProtoFatalError
     include SMTPError
   end
 
@@ -510,6 +515,7 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::OpenTimeout
     # * Net::ReadTimeout
@@ -583,6 +589,7 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::OpenTimeout
     # * Net::ReadTimeout
@@ -752,9 +759,11 @@ module Net
     #
     # This method may raise:
     #
+    # * Net::SMTPAuthenticationError
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
@@ -808,6 +817,7 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
@@ -1165,6 +1175,7 @@ module Net
         when /\A4/  then SMTPServerBusy
         when /\A50/ then SMTPSyntaxError
         when /\A53/ then SMTPAuthenticationError
+        when /\A55/ then SMTPMailboxPermanentlyUnavailable
         when /\A5/  then SMTPFatalError
         else             SMTPUnknownError
         end
