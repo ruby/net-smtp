@@ -667,7 +667,7 @@ module Net
             if $1.start_with? "-"
               sock.puts "501 5.1.3 Bad recipient address syntax\r\n"
             elsif $1.start_with? "~"
-              sock.puts "400 4.0.0 Try again\r\n"
+              sock.puts "450 4.2.1 Try again\r\n"
             else
               @recipients << $1
               sock.puts "250 2.1.5 Okay\r\n"
