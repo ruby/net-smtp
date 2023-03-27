@@ -42,7 +42,7 @@ module Net
         @message = message
       else
         @response = nil
-        @message = message || response 
+        @message = message || response
       end
     end
 
@@ -51,7 +51,7 @@ module Net
     end
   end
 
-  # Represents an SMTP authentication error.
+  # Represents an SMTP authentication error (error code 53x).
   class SMTPAuthenticationError < ProtoAuthError
     include SMTPError
   end
@@ -66,7 +66,7 @@ module Net
     include SMTPError
   end
 
-  # Represents a fatal SMTP error (error code 5xx, except for 500)
+  # Represents a fatal SMTP error (error code 5xx, except for 500 and 53x)
   class SMTPFatalError < ProtoFatalError
     include SMTPError
   end
