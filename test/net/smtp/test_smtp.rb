@@ -589,6 +589,17 @@ module Net
       end
     end
 
+    def test_rcpt_to_nonexistent_recipient
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        assert_raise Net::SMTPMailboxPermanentlyUnavailable do
+          conn.send_message "test", "me@example.org", ["nonexistent@example.net", "friend@example.net"]
+        end
+      end
+      assert_empty @recipients
+    end
+
     private
 
     def accept(servers)
@@ -668,6 +679,8 @@ module Net
               sock.puts "501 5.1.3 Bad recipient address syntax\r\n"
             elsif $1.start_with? "~"
               sock.puts "450 4.2.1 Try again\r\n"
+            elsif $1.start_with? "nonexistent"
+              sock.puts "550 5.1.1 User unknown\r\n"
             else
               @recipients << $1
               sock.puts "250 2.1.5 Okay\r\n"
