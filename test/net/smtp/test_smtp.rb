@@ -612,6 +612,26 @@ module Net
       assert_equal ["friend@example.net"], @recipients
     end
 
+    def test_rcptto_list_empty_list
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        conn.rcptto_list []
+      end
+      assert_equal [], @recipients
+    end
+
+    def test_rcptto_list_all_nonexistent_recipients
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        conn.rcptto_list ["nonexistent1@example.net", "nonexistent2@example.net"]
+      end
+      assert_equal [], @recipients
+    end
+
     private
 
     def accept(servers)
