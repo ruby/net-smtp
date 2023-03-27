@@ -589,13 +589,23 @@ module Net
       end
     end
 
-    def test_rcpt_to_nonexistent_recipient
+    def test_rcpt_to_nonexistent_recipient_send_message
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
         assert_raise Net::SMTPMailboxPermanentlyUnavailable do
           conn.send_message "test", "me@example.org", ["nonexistent@example.net", "friend@example.net"]
         end
+      end
+      assert_empty @recipients
+    end
+
+    def test_rcpt_to_nonexistent_recipient_rcptto
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        conn.rcptto_list ["friend@example.net", "nonexistent@example.net"]
       end
       assert_empty @recipients
     end
