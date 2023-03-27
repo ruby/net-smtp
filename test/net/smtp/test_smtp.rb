@@ -605,9 +605,11 @@ module Net
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
         conn.mailfrom "me@example.org"
-        conn.rcptto_list ["friend@example.net", "nonexistent@example.net"]
+        assert_raise Net::SMTPMailboxPermanentlyUnavailable do
+          conn.rcptto_list ["friend@example.net", "nonexistent@example.net"]
+        end
       end
-      assert_empty @recipients
+      assert_equal ["friend@example.net"], @recipients
     end
 
     private
