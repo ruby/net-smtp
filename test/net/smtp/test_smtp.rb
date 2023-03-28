@@ -591,7 +591,7 @@ module Net
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
-        assert_raise Net::SMTPSyntaxError do
+        assert_raise Net::SMTPMixedRecipientStatus do
           conn.send_message "test", "me@example.org", ["you@example.net", "-friend@example.net"]
         end
       end
@@ -611,7 +611,7 @@ module Net
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
-        assert_raise Net::SMTPMailboxPermanentlyUnavailable do
+        assert_raise Net::SMTPMixedRecipientStatus do
           conn.send_message "test", "me@example.org", ["nonexistent@example.net", "friend@example.net"]
         end
       end
@@ -623,7 +623,7 @@ module Net
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
         conn.mailfrom "me@example.org"
-        assert_raise Net::SMTPMailboxPermanentlyUnavailable do
+        assert_raise Net::SMTPMixedRecipientStatus do
           conn.rcptto_list ["friend@example.net", "nonexistent@example.net"] do end
         end
       end
@@ -647,7 +647,7 @@ module Net
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
         conn.mailfrom "me@example.org"
-        assert_raise ArgumentError do
+        assert_raise Net::SMTPMailboxPermanentlyUnavailable do
           conn.rcptto_list ["nonexistent1@example.net", "nonexistent2@example.net"] do end
         end
       end
