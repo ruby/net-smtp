@@ -955,20 +955,27 @@ module Net
     def rcptto_list(to_addrs)
       raise ArgumentError, 'mail destination not given' if to_addrs.empty?
       ok_users = []
-      unknown_users = []
+      unauthenticated_users = []
+      permanent_error_users = []
       to_addrs.flatten.each do |addr|
         begin
           rcptto addr
         rescue SMTPAuthenticationError
-          unknown_users << addr.to_s.dump
+          unauthenticated_users << addr.to_s.dump
+        rescue SMTPMailboxPermanentlyUnavailable
+          permanent_error_users << addr.to_s.dump
         else
           ok_users << addr
         end
       end
-      raise ArgumentError, 'mail destination not given' if ok_users.empty?
+      raise ArgumentError, 'all recipients rejected by server' if ok_users.empty?
       ret = yield
-      unless unknown_users.empty?
-        raise SMTPAuthenticationError, "failed to deliver for #{unknown_users.join(', ')}"
+      unless unauthenticated_users.empty?
+        raise SMTPAuthenticationError, "failed to authenticate for #{unauthenticated_users.join(', ')}"
+      end
+      # in this case there are mixed permanently-unavailable and OK recipients
+      unless permanent_error_users.empty?
+        raise SMTPMailboxPermanentlyUnavailable, "Recipient addresses failed: #{permanent_error_users.join(', ')}"
       end
       ret
     end

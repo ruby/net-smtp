@@ -589,7 +589,7 @@ module Net
       end
     end
 
-    def test_rcpt_to_nonexistent_recipient_send_message
+    def test_rcpt_to_one_nonexistent_recipient_send_message
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
@@ -597,7 +597,7 @@ module Net
           conn.send_message "test", "me@example.org", ["nonexistent@example.net", "friend@example.net"]
         end
       end
-      assert_empty @recipients
+      assert_equal ['friend@example.net'], @recipients
     end
 
     def test_rcpt_to_nonexistent_recipient_rcptto
@@ -621,7 +621,7 @@ module Net
           conn.rcptto_list [] do end
         end
       end
-      assert_equal [], @recipients
+      assert_empty @recipients
     end
 
     def test_rcptto_list_all_nonexistent_recipients
@@ -633,7 +633,7 @@ module Net
           conn.rcptto_list ["nonexistent1@example.net", "nonexistent2@example.net"] do end
         end
       end
-      assert_equal [], @recipients
+      assert_empty @recipients
     end
 
     private
