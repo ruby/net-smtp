@@ -72,7 +72,7 @@ module Net
   end
 
   # Represents a fatal SMTP error pertaining to the mailbox (error code 55x)
-  class SMTPMailboxPermanentlyUnavailable < ProtoFatalError
+  class SMTPMailboxPermanentlyUnavailable < SMTPFatalError
     include SMTPError
   end
 
