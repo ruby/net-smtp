@@ -636,6 +636,18 @@ module Net
       assert_empty @recipients
     end
 
+    def test_rcptto_list_some_nonexistent_recipients
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        assert_raise Net::SMTPMixedRecipientStatus do
+          conn.rcptto_list ["friend@example.net", "nonexistent1@example.net", "nonexistent2@example.net", "friend@example.com"] do end
+        end
+      end
+      assert_equal ["friend@example.net", "friend@example.com"], @recipients
+    end
+
     private
 
     def accept(servers)
