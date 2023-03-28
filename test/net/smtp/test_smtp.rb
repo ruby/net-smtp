@@ -560,7 +560,25 @@ module Net
       assert_equal('wrong number of arguments (given 5, expected 0..4)', err.message)
     end
 
-    def test_rcpt_to
+    def test_send_message_rcpt_to_string
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.send_message "test", "me@example.org", "you@example.net"
+      end
+      assert_equal %w[you@example.net], @recipients
+    end
+
+    def test_send_message_rcpt_to_single_list
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.send_message "test", "me@example.org", ["you@example.net"]
+      end
+      assert_equal %w[you@example.net], @recipients
+    end
+
+    def test_send_message_rcpt_to_two_of_them
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
       smtp.start do |conn|
