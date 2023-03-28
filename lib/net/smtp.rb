@@ -76,6 +76,21 @@ module Net
     include SMTPError
   end
 
+  # A synthetic status, raised from `rcptto_list`, when multiple recipients are given,
+  # and some have succeeded, but others encountered 501 (syntax error) or 55x (permanent
+  # mailbox error).
+  class SMTPMixedRecipientStatus < SMTPMailboxPermanentlyUnavailable
+    include SMTPError
+    attr_reader :ok, :permerror, :bad_syntax
+
+    def initialize(ok_addrs, permerror_addrs, bad_syntax_addrs)
+      @ok = ok_addrs
+      @permerror = permerror_addrs
+      @bad_syntax = bad_syntax_addrs
+      super("Mixed recipient status: #{@ok.length} ok, #{@permerror.length} permanent failure, #{@bad_syntax.length} bad syntax")
+    end
+  end
+
   # Unexpected reply code returned from server.
   class SMTPUnknownError < ProtoUnknownError
     include SMTPError
@@ -952,32 +967,69 @@ module Net
       getok((["MAIL FROM:<#{addr.address}>"] + addr.parameters).join(' '))
     end
 
+    # +to_addrs+ is an +Enumerable+ of +String+ or +Net::SMTP::Address+
+    #
+    # Raises:
+    # * Net::SMTPSyntaxError
+    # * Net::SMTPServerBusy
+    # * Net::SMTPAuthenticationError
+    # * Net::SMTPMailboxPermanentlyUnavailable
+    # * Net::SMTPMixedRecipientStatus
     def rcptto_list(to_addrs)
       raise ArgumentError, 'mail destination not given' if to_addrs.empty?
-      ok_users = []
-      unauthenticated_users = []
-      permanent_error_users = []
+
+      # In the case of one recipient, pass it down to the plain rcptto (which
+      # will either succeed or raise one of the same exceptions that this method
+      # would have raised), yield to the block (which is expected to call data),
+      # and return early, so as to avoid having to carefully handle the
+      # single-recipient case here.
+      if to_addrs.length == 1
+        rcptto(to_addrs.first)
+        return yield
+      end
+
+      ok_addrs = []
+      unauthenticated_addrs = []
+      permanent_error_addrs = []
+      syntactically_invalid = []
+
       to_addrs.flatten.each do |addr|
-        begin
-          rcptto addr
-        rescue SMTPAuthenticationError
-          unauthenticated_users << addr.to_s.dump
-        rescue SMTPMailboxPermanentlyUnavailable
-          permanent_error_users << addr.to_s.dump
-        else
-          ok_users << addr
-        end
+        rcptto addr
+      rescue SMTPSyntaxError
+        syntactically_invalid << addr
+      rescue SMTPAuthenticationError
+        unauthenticated_addrs << addr
+      rescue SMTPMailboxPermanentlyUnavailable
+        permanent_error_addrs << addr
+      else
+        ok_addrs << addr
       end
-      raise ArgumentError, 'all recipients rejected by server' if ok_users.empty?
-      ret = yield
-      unless unauthenticated_users.empty?
-        raise SMTPAuthenticationError, "failed to authenticate for #{unauthenticated_users.join(', ')}"
+
+      # If any one of these addrs requires authentication, raise a specific error.
+      unless unauthenticated_addrs.empty?
+        addresses = unauthenticated_addrs.map { |addr| addr.to_s.dump }.join(', ')
+        raise SMTPAuthenticationError, "failed to authenticate for #{addresses}"
       end
-      # in this case there are mixed permanently-unavailable and OK recipients
-      unless permanent_error_users.empty?
-        raise SMTPMailboxPermanentlyUnavailable, "Recipient addresses failed: #{permanent_error_users.join(', ')}"
+
+      # If all recipients were accepted by the server, yield to the block, which
+      # is probably going to call `data` to deliver a message.
+      return yield if ok_addrs.length == to_addrs.length
+
+      # Now, we have eliminated all single-recipient cases, the successful case
+      # of all recipients being accepted, and the case of any number of
+      # authentication errors, so at this point there are any number of possible
+      # mixed permanently-unavailable, syntactically-invalid, and OK recipients.
+      # If all of the errors are of one type, raise a specific exception.
+      # Otherwise, raise SMTPMixedRecipientStatus.
+      if permanent_error_addrs.length == to_addrs.length
+        addresses = permanent_error_addrs.map { |addr| addr.to_s.dump }.join(', ')
+        raise SMTPMailboxPermanentlyUnavailable, "all recipients were permanently undeliverable: #{addresses}"
+      elsif syntactically_invalid.length == to_addrs.length
+        addresses = syntactically_invalid.map { |addr| addr.to_s.dump }.join(', ')
+        raise SMTPSyntaxError, "all recipients had syntax errors: #{addresses}"
+      else
+        raise SMTPMixedRecipientStatus.new(ok_addrs, permanent_error_addrs, syntactically_invalid)
       end
-      ret
     end
 
     # +to_addr+ is +String+ or +Net::SMTP::Address+
