@@ -771,7 +771,7 @@ module Net
     def send_message(msgstr, from_addr, *to_addrs)
       raise IOError, 'closed session' unless @socket
       mailfrom from_addr
-      rcptto_list(to_addrs) {data msgstr}
+      rcptto_list(to_addrs.flatten) {data msgstr}
     end
 
     alias send_mail send_message
@@ -825,7 +825,7 @@ module Net
     def open_message_stream(from_addr, *to_addrs, &block)   # :yield: stream
       raise IOError, 'closed session' unless @socket
       mailfrom from_addr
-      rcptto_list(to_addrs) {data(&block)}
+      rcptto_list(to_addrs.flatten) {data(&block)}
     end
 
     alias ready open_message_stream   # obsolete
