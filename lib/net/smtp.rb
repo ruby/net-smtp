@@ -42,7 +42,7 @@ module Net
         @message = message
       else
         @response = nil
-        @message = message || response 
+        @message = message || response
       end
     end
 
@@ -51,7 +51,7 @@ module Net
     end
   end
 
-  # Represents an SMTP authentication error.
+  # Represents an SMTP authentication error (error code 53x).
   class SMTPAuthenticationError < ProtoAuthError
     include SMTPError
   end
@@ -61,14 +61,34 @@ module Net
     include SMTPError
   end
 
-  # Represents an SMTP command syntax error (error code 500)
+  # Represents an SMTP command syntax error (error code 50x)
   class SMTPSyntaxError < ProtoSyntaxError
     include SMTPError
   end
 
-  # Represents a fatal SMTP error (error code 5xx, except for 500)
+  # Represents a fatal SMTP error (error code 5xx, except for 50x, 53x, and 55x)
   class SMTPFatalError < ProtoFatalError
     include SMTPError
+  end
+
+  # Represents a fatal SMTP error pertaining to the mailbox (error code 55x)
+  class SMTPMailboxPermanentlyUnavailable < SMTPFatalError
+    include SMTPError
+  end
+
+  # A synthetic status, raised from `rcptto_list`, when multiple recipients are given,
+  # and some have succeeded, but others encountered 50x (syntax error) or 55x (permanent
+  # mailbox error).
+  class SMTPMixedRecipientStatus < SMTPMailboxPermanentlyUnavailable
+    include SMTPError
+    attr_reader :ok, :permerror, :bad_syntax
+
+    def initialize(ok_addrs, permerror_addrs, bad_syntax_addrs)
+      @ok = ok_addrs
+      @permerror = permerror_addrs
+      @bad_syntax = bad_syntax_addrs
+      super("Mixed recipient status: #{@ok.length} ok, #{@permerror.length} permanent failure, #{@bad_syntax.length} bad syntax")
+    end
   end
 
   # Unexpected reply code returned from server.
@@ -510,6 +530,7 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::OpenTimeout
     # * Net::ReadTimeout
@@ -583,6 +604,7 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::OpenTimeout
     # * Net::ReadTimeout
@@ -752,9 +774,11 @@ module Net
     #
     # This method may raise:
     #
+    # * Net::SMTPAuthenticationError
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
@@ -762,7 +786,7 @@ module Net
     def send_message(msgstr, from_addr, *to_addrs)
       raise IOError, 'closed session' unless @socket
       mailfrom from_addr
-      rcptto_list(to_addrs) {data msgstr}
+      rcptto_list(to_addrs.flatten) {data msgstr}
     end
 
     alias send_mail send_message
@@ -808,6 +832,7 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPMailboxPermanentlyUnavailable
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
@@ -815,7 +840,7 @@ module Net
     def open_message_stream(from_addr, *to_addrs, &block)   # :yield: stream
       raise IOError, 'closed session' unless @socket
       mailfrom from_addr
-      rcptto_list(to_addrs) {data(&block)}
+      rcptto_list(to_addrs.flatten) {data(&block)}
     end
 
     alias ready open_message_stream   # obsolete
@@ -942,25 +967,79 @@ module Net
       getok((["MAIL FROM:<#{addr.address}>"] + addr.parameters).join(' '))
     end
 
+    # Submit a list of addresses to the SMTP server, handling common issues.
+    #
+    # Each address is protected against authentication errors (53x), syntax
+    # errors (50x), and mailbox permanent errors (55x); if all recipients
+    # encounter the same error, then an error of that type is raised. Otherwise,
+    # +Net::SMTPMixedRecipientStatus+ is raised.
+    #
+    # If all recipients are accepted, this method yields to a provided block,
+    # which can then call `DATA` to deliver a message.
+    #
+    # +to_addrs+ is an +Enumerable+ of +String+ or +Net::SMTP::Address+.
+    #
+    # Raises:
+    # * Net::SMTPSyntaxError
+    # * Net::SMTPServerBusy
+    # * Net::SMTPAuthenticationError
+    # * Net::SMTPMailboxPermanentlyUnavailable
+    # * Net::SMTPMixedRecipientStatus
     def rcptto_list(to_addrs)
       raise ArgumentError, 'mail destination not given' if to_addrs.empty?
-      ok_users = []
-      unknown_users = []
+
+      # In the case of one recipient, pass it down to the plain rcptto (which
+      # will either succeed or raise one of the same exceptions that this method
+      # would have raised), yield to the block (which is expected to call data),
+      # and return early, so as to avoid having to carefully handle the
+      # single-recipient case here.
+      if to_addrs.length == 1
+        rcptto(to_addrs.first)
+        return yield
+      end
+
+      ok_addrs = []
+      unauthenticated_addrs = []
+      permanent_error_addrs = []
+      syntactically_invalid = []
+
       to_addrs.flatten.each do |addr|
-        begin
-          rcptto addr
-        rescue SMTPAuthenticationError
-          unknown_users << addr.to_s.dump
-        else
-          ok_users << addr
-        end
+        rcptto addr
+      rescue SMTPSyntaxError
+        syntactically_invalid << addr
+      rescue SMTPAuthenticationError
+        unauthenticated_addrs << addr
+      rescue SMTPMailboxPermanentlyUnavailable
+        permanent_error_addrs << addr
+      else
+        ok_addrs << addr
       end
-      raise ArgumentError, 'mail destination not given' if ok_users.empty?
-      ret = yield
-      unless unknown_users.empty?
-        raise SMTPAuthenticationError, "failed to deliver for #{unknown_users.join(', ')}"
+
+      # If any one of these addrs requires authentication, raise a specific error.
+      unless unauthenticated_addrs.empty?
+        addresses = unauthenticated_addrs.map { |addr| addr.to_s.dump }.join(', ')
+        raise SMTPAuthenticationError, "failed to authenticate for #{addresses}"
       end
-      ret
+
+      # If all recipients were accepted by the server, yield to the block, which
+      # is probably going to call `data` to deliver a message.
+      return yield if ok_addrs.length == to_addrs.length
+
+      # Now, we have eliminated all single-recipient cases, the successful case
+      # of all recipients being accepted, and the case of any number of
+      # authentication errors, so at this point there are any number of possible
+      # mixed permanently-unavailable, syntactically-invalid, and OK recipients.
+      # If all of the errors are of one type, raise a specific exception.
+      # Otherwise, raise SMTPMixedRecipientStatus.
+      if permanent_error_addrs.length == to_addrs.length
+        addresses = permanent_error_addrs.map { |addr| addr.to_s.dump }.join(', ')
+        raise SMTPMailboxPermanentlyUnavailable, "all recipients were permanently undeliverable: #{addresses}"
+      elsif syntactically_invalid.length == to_addrs.length
+        addresses = syntactically_invalid.map { |addr| addr.to_s.dump }.join(', ')
+        raise SMTPSyntaxError, "all recipients had syntax errors: #{addresses}"
+      else
+        raise SMTPMixedRecipientStatus.new(ok_addrs, permanent_error_addrs, syntactically_invalid)
+      end
     end
 
     # +to_addr+ is +String+ or +Net::SMTP::Address+
@@ -1165,6 +1244,7 @@ module Net
         when /\A4/  then SMTPServerBusy
         when /\A50/ then SMTPSyntaxError
         when /\A53/ then SMTPAuthenticationError
+        when /\A55/ then SMTPMailboxPermanentlyUnavailable
         when /\A5/  then SMTPFatalError
         else             SMTPUnknownError
         end

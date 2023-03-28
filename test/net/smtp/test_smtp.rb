@@ -560,6 +560,112 @@ module Net
       assert_equal('wrong number of arguments (given 5, expected 0..4)', err.message)
     end
 
+    def test_send_message_rcpt_to_string
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.send_message "test", "me@example.org", "you@example.net"
+      end
+      assert_equal %w[you@example.net], @recipients
+    end
+
+    def test_send_message_rcpt_to_single_list
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.send_message "test", "me@example.org", ["you@example.net"]
+      end
+      assert_equal %w[you@example.net], @recipients
+    end
+
+    def test_send_message_rcpt_to_two_of_them
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.send_message "test", "me@example.org", ["you@example.net", "friend@example.net"]
+      end
+      assert_equal %w[you@example.net friend@example.net], @recipients
+    end
+
+    def test_rcpt_to_bad_recipient
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        assert_raise Net::SMTPMixedRecipientStatus do
+          conn.send_message "test", "me@example.org", ["you@example.net", "-friend@example.net"]
+        end
+      end
+    end
+
+    def test_rcpt_to_temporary_failure_recipient
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        assert_raise Net::SMTPServerBusy do
+          conn.send_message "test", "me@example.org", ["~you@example.net", "friend@example.net"]
+        end
+      end
+    end
+
+    def test_rcpt_to_one_nonexistent_recipient_send_message
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        assert_raise Net::SMTPMixedRecipientStatus do
+          conn.send_message "test", "me@example.org", ["nonexistent@example.net", "friend@example.net"]
+        end
+      end
+      assert_equal ['friend@example.net'], @recipients
+    end
+
+    def test_rcpt_to_nonexistent_recipient_rcptto
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        assert_raise Net::SMTPMixedRecipientStatus do
+          conn.rcptto_list ["friend@example.net", "nonexistent@example.net"] do end
+        end
+      end
+      assert_equal ["friend@example.net"], @recipients
+    end
+
+    def test_rcptto_list_empty_list
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        assert_raise ArgumentError do
+          conn.rcptto_list [] do end
+        end
+      end
+      assert_empty @recipients
+    end
+
+    def test_rcptto_list_all_nonexistent_recipients
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        assert_raise Net::SMTPMailboxPermanentlyUnavailable do
+          conn.rcptto_list ["nonexistent1@example.net", "nonexistent2@example.net"] do end
+        end
+      end
+      assert_empty @recipients
+    end
+
+    def test_rcptto_list_some_nonexistent_recipients
+      port = fake_server_start
+      smtp = Net::SMTP.new('localhost', port)
+      smtp.start do |conn|
+        conn.mailfrom "me@example.org"
+        assert_raise Net::SMTPMixedRecipientStatus do
+          conn.rcptto_list ["friend@example.net", "nonexistent1@example.net", "nonexistent2@example.net", "friend@example.com"] do end
+        end
+      end
+      assert_equal ["friend@example.net", "friend@example.com"], @recipients
+    end
+
     private
 
     def accept(servers)
@@ -568,6 +674,7 @@ module Net
 
     def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false, authtype: 'PLAIN')
       @starttls_started = false
+      @recipients = []
       servers = Socket.tcp_server_sockets('localhost', 0)
       @server_threads << Thread.start do
         Thread.current.abort_on_exception = true
@@ -631,6 +738,26 @@ module Net
             else
               sock.puts "535 5.7.8 Error: authentication failed: authentication failure\r\n"
             end
+          when /\AMAIL FROM: *<.*>/
+            sock.puts "250 2.1.0 Okay\r\n"
+          when /\ARCPT TO: *<(.*)>/
+            if $1.start_with? "-"
+              sock.puts "501 5.1.3 Bad recipient address syntax\r\n"
+            elsif $1.start_with? "~"
+              sock.puts "450 4.2.1 Try again\r\n"
+            elsif $1.start_with? "nonexistent"
+              sock.puts "550 5.1.1 User unknown\r\n"
+            else
+              @recipients << $1
+              sock.puts "250 2.1.5 Okay\r\n"
+            end
+          when "DATA"
+            sock.puts "354 Continue (finish with dot)\r\n"
+            loop do
+              line = sock.gets
+              break if line == ".\r\n"
+            end
+            sock.puts "250 2.6.0 Okay\r\n"
           when "QUIT"
             sock.puts "221 2.0.0 Bye\r\n"
             sock.close
