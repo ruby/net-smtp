@@ -61,12 +61,12 @@ module Net
     include SMTPError
   end
 
-  # Represents an SMTP command syntax error (error code 500)
+  # Represents an SMTP command syntax error (error code 50x)
   class SMTPSyntaxError < ProtoSyntaxError
     include SMTPError
   end
 
-  # Represents a fatal SMTP error (error code 5xx, except for 500, 53x, and 55x)
+  # Represents a fatal SMTP error (error code 5xx, except for 50x, 53x, and 55x)
   class SMTPFatalError < ProtoFatalError
     include SMTPError
   end
@@ -77,7 +77,7 @@ module Net
   end
 
   # A synthetic status, raised from `rcptto_list`, when multiple recipients are given,
-  # and some have succeeded, but others encountered 501 (syntax error) or 55x (permanent
+  # and some have succeeded, but others encountered 50x (syntax error) or 55x (permanent
   # mailbox error).
   class SMTPMixedRecipientStatus < SMTPMailboxPermanentlyUnavailable
     include SMTPError
@@ -967,7 +967,17 @@ module Net
       getok((["MAIL FROM:<#{addr.address}>"] + addr.parameters).join(' '))
     end
 
-    # +to_addrs+ is an +Enumerable+ of +String+ or +Net::SMTP::Address+
+    # Submit a list of addresses to the SMTP server, handling common issues.
+    #
+    # Each address is protected against authentication errors (53x), syntax
+    # errors (50x), and mailbox permanent errors (55x); if all recipients
+    # encounter the same error, then an error of that type is raised. Otherwise,
+    # +Net::SMTPMixedRecipientStatus+ is raised.
+    #
+    # If all recipients are accepted, this method yields to a provided block,
+    # which can then call `DATA` to deliver a message.
+    #
+    # +to_addrs+ is an +Enumerable+ of +String+ or +Net::SMTP::Address+.
     #
     # Raises:
     # * Net::SMTPSyntaxError
