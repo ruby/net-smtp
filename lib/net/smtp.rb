@@ -21,10 +21,6 @@ require 'net/protocol'
 begin
   require 'openssl'
 rescue LoadError
-  begin
-    require 'digest/md5'
-  rescue LoadError
-  end
 end
 
 module Net
@@ -628,16 +624,6 @@ module Net
 
     private
 
-    def digest_class
-      @digest_class ||= if defined?(OpenSSL::Digest)
-                          OpenSSL::Digest
-                        elsif defined?(::Digest)
-                          ::Digest
-                        else
-                          raise '"openssl" or "digest" library is required'
-                        end
-    end
-
     def tcp_socket(address, port)
       TCPSocket.open address, port
     end
@@ -831,45 +817,14 @@ module Net
     def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
       check_auth_method authtype
       check_auth_args user, secret
-      public_send auth_method(authtype), user, secret
-    end
-
-    def auth_plain(user, secret)
-      check_auth_args user, secret
-      res = critical {
-        get_response('AUTH PLAIN ' + base64_encode("\0#{user}\0#{secret}"))
-      }
-      check_auth_response res
-      res
-    end
-
-    def auth_login(user, secret)
-      check_auth_args user, secret
-      res = critical {
-        check_auth_continue get_response('AUTH LOGIN')
-        check_auth_continue get_response(base64_encode(user))
-        get_response(base64_encode(secret))
-      }
-      check_auth_response res
-      res
-    end
-
-    def auth_cram_md5(user, secret)
-      check_auth_args user, secret
-      res = critical {
-        res0 = get_response('AUTH CRAM-MD5')
-        check_auth_continue res0
-        crammed = cram_md5_response(secret, res0.cram_md5_challenge)
-        get_response(base64_encode("#{user} #{crammed}"))
-      }
-      check_auth_response res
-      res
+      authenticator = Authenticator.auth_class(authtype).new(self)
+      authenticator.auth(user, secret)
     end
 
     private
 
     def check_auth_method(type)
-      unless respond_to?(auth_method(type), true)
+      unless Authenticator.auth_class(type)
         raise ArgumentError, "wrong authentication type #{type}"
       end
     end
@@ -885,31 +840,6 @@ module Net
       unless secret
         raise ArgumentError, 'SMTP-AUTH requested but missing secret phrase'
       end
-    end
-
-    def base64_encode(str)
-      # expects "str" may not become too long
-      [str].pack('m0')
-    end
-
-    IMASK = 0x36
-    OMASK = 0x5c
-
-    # CRAM-MD5: [RFC2195]
-    def cram_md5_response(secret, challenge)
-      tmp = digest_class::MD5.digest(cram_secret(secret, IMASK) + challenge)
-      digest_class::MD5.hexdigest(cram_secret(secret, OMASK) + tmp)
-    end
-
-    CRAM_BUFSIZE = 64
-
-    def cram_secret(secret, mask)
-      secret = digest_class::MD5.digest(secret) if secret.size > CRAM_BUFSIZE
-      buf = secret.ljust(CRAM_BUFSIZE, "\0")
-      0.upto(buf.size - 1) do |i|
-        buf[i] = (buf[i].ord ^ mask).chr
-      end
-      buf
     end
 
     #
@@ -1023,6 +953,12 @@ module Net
       getok('QUIT')
     end
 
+    def get_response(reqline)
+      validate_line reqline
+      @socket.writeline reqline
+      recv_response()
+    end
+
     private
 
     def validate_line(line)
@@ -1040,12 +976,6 @@ module Net
       }
       check_response res
       res
-    end
-
-    def get_response(reqline)
-      validate_line reqline
-      @socket.writeline reqline
-      recv_response()
     end
 
     def recv_response
@@ -1077,18 +1007,6 @@ module Net
     def check_continue(res)
       unless res.continue?
         raise SMTPUnknownError.new(res, message: "could not get 3xx (#{res.status}: #{res.string})")
-      end
-    end
-
-    def check_auth_response(res)
-      unless res.success?
-        raise SMTPAuthenticationError.new(res)
-      end
-    end
-
-    def check_auth_continue(res)
-      unless res.continue?
-        raise res.exception_class.new(res)
       end
     end
 
@@ -1206,4 +1124,9 @@ module Net
 
   SMTPSession = SMTP # :nodoc:
 
+end
+
+require_relative 'smtp/authenticator'
+Dir.glob("#{__dir__}/smtp/auth_*.rb") do |r|
+  require_relative r
 end
