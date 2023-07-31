@@ -138,7 +138,7 @@ module Net
       sock = FakeSocket.new
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
-      assert smtp.auth_plain("foo", "bar").success?
+      assert smtp.authenticate("foo", "bar", :plain).success?
       assert_equal "AUTH PLAIN AGZvbwBiYXI=\r\n", sock.write_io.string
     end
 
@@ -146,7 +146,7 @@ module Net
       sock = FakeSocket.new("535 Authentication failed: FAIL\r\n")
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPAuthenticationError) { smtp.auth_plain("foo", "bar") }
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :plain) }
       assert_equal "535 Authentication failed: FAIL\n", err.message
       assert_equal "535", err.response.status
     end
@@ -155,14 +155,14 @@ module Net
       sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n235 2.7.0 Authentication successful\r\n")
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
-      assert smtp.auth_login("foo", "bar").success?
+      assert smtp.authenticate("foo", "bar", :login).success?
     end
 
     def test_unsucessful_auth_login
       sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n535 Authentication failed: FAIL\r\n")
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPAuthenticationError) { smtp.auth_login("foo", "bar") }
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :login) }
       assert_equal "535 Authentication failed: FAIL\n", err.message
       assert_equal "535", err.response.status
     end
@@ -171,7 +171,7 @@ module Net
       sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n235 2.7.0 Authentication successful\r\n")
       smtp = Net::SMTP.new 'localhost', 25
       smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPUnknownError) { smtp.auth_login("foo", "bar") }
+      err = assert_raise(Net::SMTPUnknownError) { smtp.authenticate("foo", "bar", :login) }
       assert_equal "235 2.7.0 Authentication successful\n", err.message
       assert_equal "235", err.response.status
     end
@@ -517,7 +517,9 @@ module Net
 
       port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
       smtp = Net::SMTP.new('localhost', port)
-      smtp.define_singleton_method(:digest_class) { raise '"openssl" or "digest" library is required' }
+      auth_cram_md5 = Net::SMTP::AuthCramMD5.new(smtp)
+      auth_cram_md5.define_singleton_method(:digest_class) { raise '"openssl" or "digest" library is required' }
+      Net::SMTP::AuthCramMD5.define_singleton_method(:new) { |_| auth_cram_md5 }
       e = assert_raise RuntimeError do
         smtp.start(user: 'account', password: 'password', authtype: :cram_md5){}
       end
