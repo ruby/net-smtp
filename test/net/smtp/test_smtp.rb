@@ -1,3 +1,4 @@
+# coding: utf-8
 # frozen_string_literal: true
 require 'net/smtp'
 require 'stringio'
@@ -8,6 +9,16 @@ module Net
     CA_FILE = File.expand_path("../fixtures/cacert.pem", __dir__)
     SERVER_KEY = File.expand_path("../fixtures/server.key", __dir__)
     SERVER_CERT = File.expand_path("../fixtures/server.crt", __dir__)
+
+    class FakeIO
+      def sync
+        nil
+      end
+      def sync=(unused)
+      end
+      def flush
+      end
+    end
 
     class FakeSocket
       attr_reader :write_io
@@ -25,6 +36,16 @@ module Net
         line = @read_io.gets
         raise 'ran out of input' unless line
         line.chop
+      end
+
+      def io
+        return @io ||= FakeIO.new
+      end
+
+      def write_message(unused)
+      end
+
+      def write_message_by_block
       end
     end
 
@@ -76,13 +97,13 @@ module Net
         smtp = Net::SMTP.start('localhost', port, starttls: false)
         assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
         assert_equal(true, smtp.capable?('STARTTLS'))
-        assert_equal(false, smtp.capable?('SMTPUTF8'))
+        assert_equal(false, smtp.capable?('DOES-NOT-EXIST'))
       else
         port = fake_server_start
         smtp = Net::SMTP.start('localhost', port, starttls: false)
         assert_equal({"AUTH"=>["PLAIN"]}, smtp.capabilities)
         assert_equal(false, smtp.capable?('STARTTLS'))
-        assert_equal(false, smtp.capable?('SMTPUTF8'))
+        assert_equal(false, smtp.capable?('DOES-NOT-EXIST'))
       end
       smtp.finish
     end
@@ -560,6 +581,51 @@ module Net
         smtp.start('myname', 'account', 'password', :plain, :invalid_arg)
       end
       assert_equal('wrong number of arguments (given 5, expected 0..4)', err.message)
+    end
+
+    def test_send_smtputf_sender_without_server
+      sock = FakeSocket.new("220 OK\r\n250-test\r\n250 SMTPUTF8\r\n")
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      assert_raise(Net::SMTPUTF8RequiredError) do
+        smtp.send_message('message', 'rené@example.com')
+      end
+    end
+
+    def test_send_smtputf8_sender
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>[]}
+      sock = FakeSocket.new("250 OK\r\n250 OK\r\n354 Blah\r\n250 Queued, in a way\r\n")
+      smtp.instance_variable_set :@socket, sock
+      smtp.send_message('message', 'rené@example.com', 'foo@example.com')
+      assert sock.write_io.string.include? "MAIL FROM:<rené@example.com> SMTPUTF8\r\n"
+    end
+
+    def test_send_smtputf8_sender_with_size
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>[]}
+      sock = FakeSocket.new("250 OK\r\n250 OK\r\n354 Blah\r\n250 Queued, in a way\r\n")
+      smtp.instance_variable_set :@socket, sock
+      smtp.send_message('message', Net::SMTP::Address.new('rené@example.com', 'SIZE=42'), 'foo@example.com')
+      assert sock.write_io.string.include? "MAIL FROM:<rené@example.com> SIZE=42 SMTPUTF8\r\n"
+    end
+
+    def test_send_smtputf_recipient
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>[]}
+      sock = FakeSocket.new("250 MAIL OK\r\n250 RCPT OK\r\n354 Blah\r\n250 Queued, in a way\r\n")
+      smtp.instance_variable_set :@socket, sock
+      smtp.send_message('message', 'foo@example.com', 'rené@example.com')
+      assert sock.write_io.string.include? "MAIL FROM:<foo@example.com> SMTPUTF8\r\n"
+    end
+
+    def test_mailfrom_with_smtputf_detection
+      sock = FakeSocket.new
+      smtp = Net::SMTP.new 'localhost', 25
+      smtp.instance_variable_set :@socket, sock
+      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>""}
+      smtp.mailfrom("rené@example.com")
+      assert sock.write_io.string.include? "MAIL FROM:<rené@example.com> SMTPUTF8\r\n"
     end
 
     private

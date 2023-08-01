@@ -77,12 +77,23 @@ module Net
     include SMTPError
   end
 
+  # Represents a need to use SMTPUTF8 when the server does not support it
+  class SMTPUTF8RequiredError < SMTPUnsupportedCommand
+  end
+
   #
   # == What is This Library?
   #
   # This library provides functionality to send internet
   # mail via SMTP, the Simple Mail Transfer Protocol. For details of
-  # SMTP itself, see [RFC2821] (http://www.ietf.org/rfc/rfc2821.txt).
+  # SMTP itself, see [RFC5321] (http://www.ietf.org/rfc/rfc5321.txt).
+  # This library also implements SMTP authentication, which is often
+  # necessary for message composers to submit messages to their
+  # outgoing SMTP server, see
+  # [RFC6409](http://www.ietf.org/rfc/rfc6503.txt),
+  # and [SMTPUTF8](http://www.ietf.org/rfc/rfc6531.txt), which is
+  # necessary to send messages to/from addresses containing characters
+  # outside the ASCII range.
   #
   # == What is This Library NOT?
   #
@@ -92,7 +103,7 @@ module Net
   # {RubyGems.org}[https://rubygems.org/] or {The Ruby
   # Toolbox}[https://www.ruby-toolbox.com/].
   #
-  # FYI: the official documentation on internet mail is: [RFC2822] (http://www.ietf.org/rfc/rfc2822.txt).
+  # FYI: the official specification on internet mail is: [RFC5322] (http://www.ietf.org/rfc/rfc5322.txt).
   #
   # == Examples
   #
@@ -703,6 +714,18 @@ module Net
       @socket = nil
     end
 
+    def requires_smtputf8(address)
+      if address.kind_of? Address
+        !address.address.ascii_only?
+      else
+        !address.ascii_only?
+      end
+    end
+
+    def any_require_smtputf8(addresses)
+      addresses.any?{ |a| requires_smtputf8(a) }
+    end
+
     #
     # Message Sending
     #
@@ -741,13 +764,14 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPUTF8RequiredError
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
     #
     def send_message(msgstr, from_addr, *to_addrs)
       raise IOError, 'closed session' unless @socket
-      mailfrom from_addr
+      mailfrom from_addr, any_require_smtputf8(to_addrs)
       rcptto_list(to_addrs) {data msgstr}
     end
 
@@ -794,13 +818,14 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
+    # * Net::SMTPUTF8RequiredError
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
     #
     def open_message_stream(from_addr, *to_addrs, &block)   # :yield: stream
       raise IOError, 'closed session' unless @socket
-      mailfrom from_addr
+      mailfrom from_addr, any_require_smtputf8(to_addrs)
       rcptto_list(to_addrs) {data(&block)}
     end
 
@@ -867,8 +892,13 @@ module Net
     end
 
     # +from_addr+ is +String+ or +Net::SMTP::Address+
-    def mailfrom(from_addr)
-      addr = Address.new(from_addr)
+    def mailfrom(from_addr, require_smtputf8 = false)
+      addr = if require_smtputf8 || requires_smtputf8(from_addr)
+               raise SMTPUTF8RequiredError, "Message requires SMTPUTF8 but server does not support that" unless capable? "SMTPUTF8"
+               Address.new(from_addr, "SMTPUTF8")
+             else
+               Address.new(from_addr)
+             end
       getok((["MAIL FROM:<#{addr.address}>"] + addr.parameters).join(' '))
     end
 
@@ -1111,8 +1141,9 @@ module Net
           @parameters = address.parameters
         else
           @address = address
-          @parameters = (args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}
+          @parameters = []
         end
+        @parameters = (parameters + args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}
       end
 
       def to_s
