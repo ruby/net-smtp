@@ -4,6 +4,8 @@
 
 *  add Net::SMTP::Authenticator class and auth_* methods are separated from the Net::SMTP class. <https://github.com/ruby/net-smtp/pull/53/files>
 
+*  Add SMTPUTF8 support <https://github.com/ruby/net-smtp/pull/49>
+
 ## Version 0.3.3 (2022-10-29)
 
 * No timeout library required <https://github.com/ruby/net-smtp/pull/44>
