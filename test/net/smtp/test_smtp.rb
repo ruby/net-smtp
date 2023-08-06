@@ -197,6 +197,30 @@ module Net
       assert_equal "235", err.response.status
     end
 
+    def test_send_message
+      port = fake_server_start
+      smtp = Net::SMTP.start 'localhost', port
+      assert_nothing_raised do
+        smtp.send_message("message", "sender@example.com", "rcpt1@example.com")
+      end
+    end
+
+    def test_send_message_with_multiple_recipients
+      port = fake_server_start
+      smtp = Net::SMTP.start 'localhost', port
+      assert_nothing_raised do
+        smtp.send_message("message", "sender@example.com", "rcpt1@example.com", "rcpt2@example.com")
+      end
+    end
+
+    def test_send_message_with_multiple_recipients_as_array
+      port = fake_server_start
+      smtp = Net::SMTP.start 'localhost', port
+      assert_nothing_raised do
+        smtp.send_message("message", "sender@example.com", ["rcpt1@example.com", "rcpt2@example.com"])
+      end
+    end
+
     def test_unsuccessful_send_message_server_busy
       sock = FakeSocket.new("400 BUSY\r\n")
       smtp = Net::SMTP.new 'localhost', 25
@@ -699,13 +723,21 @@ module Net
             else
               sock.puts "535 5.7.8 Error: authentication failed: authentication failure\r\n"
             end
+          when /\AMAIL FROM:/, /\ARCPT TO:/
+            sock.puts "250 2.1.0 Ok\r\n"
+          when "DATA"
+            sock.puts "354 End data with <CR><LF>.<CR><LF>\r\n"
+            in_data = true
+          when "."
+            sock.puts "250 2.0.0 Ok: queued as ABCDEFG\r\n"
+            in_data = false
           when "QUIT"
             sock.puts "221 2.0.0 Bye\r\n"
             sock.close
             servers.each(&:close)
             break
           else
-            sock.puts "502 5.5.2 Error: command not recognized\r\n"
+            sock.puts "502 5.5.2 Error: command not recognized\r\n" unless in_data
           end
         end
       end
