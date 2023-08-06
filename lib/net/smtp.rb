@@ -770,6 +770,7 @@ module Net
     # * IOError
     #
     def send_message(msgstr, from_addr, *to_addrs)
+      to_addrs.flatten!
       raise IOError, 'closed session' unless @socket
       mailfrom from_addr, any_require_smtputf8(to_addrs)
       rcptto_list(to_addrs) {data msgstr}
@@ -824,6 +825,7 @@ module Net
     # * IOError
     #
     def open_message_stream(from_addr, *to_addrs, &block)   # :yield: stream
+      to_addrs.flatten!
       raise IOError, 'closed session' unless @socket
       mailfrom from_addr, any_require_smtputf8(to_addrs)
       rcptto_list(to_addrs) {data(&block)}
