@@ -906,23 +906,10 @@ module Net
 
     def rcptto_list(to_addrs)
       raise ArgumentError, 'mail destination not given' if to_addrs.empty?
-      ok_users = []
-      unknown_users = []
       to_addrs.flatten.each do |addr|
-        begin
-          rcptto addr
-        rescue SMTPAuthenticationError
-          unknown_users << addr.to_s.dump
-        else
-          ok_users << addr
-        end
+        rcptto addr
       end
-      raise ArgumentError, 'mail destination not given' if ok_users.empty?
-      ret = yield
-      unless unknown_users.empty?
-        raise SMTPAuthenticationError, "failed to deliver for #{unknown_users.join(', ')}"
-      end
-      ret
+      yield
     end
 
     # +to_addr+ is +String+ or +Net::SMTP::Address+
