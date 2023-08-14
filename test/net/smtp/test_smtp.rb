@@ -1,54 +1,10 @@
 # coding: utf-8
-# frozen_string_literal: true
+
 require 'net/smtp'
-require 'stringio'
 require 'test/unit'
 
 module Net
   class TestSMTP < Test::Unit::TestCase
-    CA_FILE = File.expand_path("../fixtures/cacert.pem", __dir__)
-    SERVER_KEY = File.expand_path("../fixtures/server.key", __dir__)
-    SERVER_CERT = File.expand_path("../fixtures/server.crt", __dir__)
-
-    class FakeIO
-      def sync
-        nil
-      end
-      def sync=(unused)
-      end
-      def flush
-      end
-    end
-
-    class FakeSocket
-      attr_reader :write_io
-
-      def initialize out = "250 OK\n"
-        @write_io = StringIO.new
-        @read_io  = StringIO.new out
-      end
-
-      def writeline line
-        @write_io.write "#{line}\r\n"
-      end
-
-      def readline
-        line = @read_io.gets
-        raise 'ran out of input' unless line
-        line.chop
-      end
-
-      def io
-        return @io ||= FakeIO.new
-      end
-
-      def write_message(unused)
-      end
-
-      def write_message_by_block
-      end
-    end
-
     def setup
       # Avoid hanging at fake_server_start's IO.select on --jit-wait CI like http://ci.rvm.jp/results/trunk-mjit-wait@phosphorus-docker/3302796
       # Unfortunately there's no way to configure read_timeout for Net::SMTP.start.
@@ -60,12 +16,10 @@ module Net
           end
         }
       end
-
-      @server_threads = []
     end
 
     def teardown
-      @server_threads.each {|th| th.kill; th.join }
+      FakeServer.stop_all
     end
 
     def test_critical
@@ -93,7 +47,7 @@ module Net
 
     def test_server_capabilities
       if defined? OpenSSL
-        port = fake_server_start(starttls: true)
+        port = fake_server_start(starttls: true, auth: 'plain')
         smtp = Net::SMTP.start('localhost', port, starttls: false)
         assert_equal({"STARTTLS"=>[], "AUTH"=>["PLAIN"]}, smtp.capabilities)
         assert_equal(true, smtp.capable?('STARTTLS'))
@@ -109,44 +63,40 @@ module Net
     end
 
     def test_rset
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, FakeSocket.new
-
+      smtp = Net::SMTP.start 'localhost', fake_server_start
       assert smtp.rset
+      smtp.finish
     end
 
     def test_mailfrom
-      sock = FakeSocket.new
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
       assert smtp.mailfrom("foo@example.com").success?
-      assert_equal "MAIL FROM:<foo@example.com>\r\n", sock.write_io.string
+      assert_equal "MAIL FROM:<foo@example.com>\r\n", server.commands.last
+      smtp.finish
     end
 
     def test_mailfrom_with_address
-      sock = FakeSocket.new
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
       addr = Net::SMTP::Address.new("foo@example.com", size: 12345)
       assert smtp.mailfrom(addr).success?
-      assert_equal "MAIL FROM:<foo@example.com> size=12345\r\n", sock.write_io.string
+      assert_equal "MAIL FROM:<foo@example.com> size=12345\r\n", server.commands.last
     end
 
     def test_rcptto
-      sock = FakeSocket.new
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
       assert smtp.rcptto("foo@example.com").success?
-      assert_equal "RCPT TO:<foo@example.com>\r\n", sock.write_io.string
+      assert_equal "RCPT TO:<foo@example.com>\r\n", server.commands.last
     end
 
     def test_rcptto_with_address
-      sock = FakeSocket.new
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
       addr = Net::SMTP::Address.new("foo@example.com", nofty: :failure)
       assert smtp.rcptto(addr).success?
-      assert_equal "RCPT TO:<foo@example.com> nofty=failure\r\n", sock.write_io.string
+      assert_equal "RCPT TO:<foo@example.com> nofty=failure\r\n", server.commands.last
     end
 
     def test_address
@@ -156,43 +106,43 @@ module Net
     end
 
     def test_auth_plain
-      sock = FakeSocket.new
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      assert smtp.authenticate("foo", "bar", :plain).success?
-      assert_equal "AUTH PLAIN AGZvbwBiYXI=\r\n", sock.write_io.string
+      server = FakeServer.start(auth: 'plain')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.authenticate("account", "password", :plain).success?
+      assert_equal "AUTH PLAIN AGFjY291bnQAcGFzc3dvcmQ=\r\n", server.commands.last
     end
 
     def test_unsucessful_auth_plain
-      sock = FakeSocket.new("535 Authentication failed: FAIL\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start(auth: 'plain')
+      smtp = Net::SMTP.start 'localhost', server.port
       err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :plain) }
-      assert_equal "535 Authentication failed: FAIL\n", err.message
+      assert_equal "535 5.7.8 Error: authentication failed: authentication failure\n", err.message
       assert_equal "535", err.response.status
     end
 
     def test_auth_login
-      sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n235 2.7.0 Authentication successful\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      assert smtp.authenticate("foo", "bar", :login).success?
+      server = FakeServer.start(auth: 'login')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.authenticate("account", "password", :login).success?
     end
 
     def test_unsucessful_auth_login
-      sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n334 UGFzc3dvcmQ6\r\n535 Authentication failed: FAIL\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start(auth: 'login')
+      smtp = Net::SMTP.start 'localhost', server.port
       err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :login) }
-      assert_equal "535 Authentication failed: FAIL\n", err.message
+      assert_equal "535 5.7.8 Error: authentication failed: authentication failure\n", err.message
       assert_equal "535", err.response.status
     end
 
     def test_non_continue_auth_login
-      sock = FakeSocket.new("334 VXNlcm5hbWU6\r\n235 2.7.0 Authentication successful\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPUnknownError) { smtp.authenticate("foo", "bar", :login) }
+      server = FakeServer.start(auth: 'login')
+      def server.auth(*)
+        @sock.puts "334 VXNlcm5hbWU6\r\n"
+        @sock.gets
+        @sock.puts "235 2.7.0 Authentication successful\r\n"
+      end
+      smtp = Net::SMTP.start 'localhost', server.port
+      err = assert_raise(Net::SMTPUnknownError) { smtp.authenticate("account", "password", :login) }
       assert_equal "235 2.7.0 Authentication successful\n", err.message
       assert_equal "235", err.response.status
     end
@@ -222,62 +172,75 @@ module Net
     end
 
     def test_unsuccessful_send_message_server_busy
-      sock = FakeSocket.new("400 BUSY\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPServerBusy) { smtp.send_message('message', 'ojab@example.com') }
+      server = FakeServer.new
+      def server.greeting
+        @sock.puts "400 BUSY\r\n"
+      end
+      server.start
+      err = assert_raise(Net::SMTPServerBusy) { Net::SMTP.start 'localhost', server.port }
       assert_equal "400 BUSY\n", err.message
       assert_equal "400", err.response.status
     end
 
     def test_unsuccessful_send_message_syntax_error
-      sock = FakeSocket.new("502 SYNTAX ERROR\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPSyntaxError) { smtp.send_message('message', 'ojab@example.com') }
+      server = FakeServer.new
+      def server.greeting
+        @sock.puts "502 SYNTAX ERROR\r\n"
+      end
+      server.start
+      err = assert_raise(Net::SMTPSyntaxError) { Net::SMTP.start 'localhost', server.port }
       assert_equal "502 SYNTAX ERROR\n", err.message
       assert_equal "502", err.response.status
     end
 
     def test_unsuccessful_send_message_authentication_error
-      sock = FakeSocket.new("530 AUTH ERROR\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPAuthenticationError) { smtp.send_message('message', 'ojab@example.com') }
+      server = FakeServer.new
+      def server.greeting
+        @sock.puts "530 AUTH ERROR\r\n"
+      end
+      server.start
+      err = assert_raise(Net::SMTPAuthenticationError) { Net::SMTP.start 'localhost', server.port }
       assert_equal "530 AUTH ERROR\n", err.message
       assert_equal "530", err.response.status
     end
 
     def test_unsuccessful_send_message_fatal_error
-      sock = FakeSocket.new("520 FATAL ERROR\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPFatalError) { smtp.send_message('message', 'ojab@example.com') }
+      server = FakeServer.new
+      def server.greeting
+        @sock.puts "520 FATAL ERROR\r\n"
+      end
+      server.start
+      err = assert_raise(Net::SMTPFatalError) { Net::SMTP.start 'localhost', server.port }
       assert_equal "520 FATAL ERROR\n", err.message
       assert_equal "520", err.response.status
     end
 
     def test_unsuccessful_send_message_unknown_error
-      sock = FakeSocket.new("300 UNKNOWN\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      err = assert_raise(Net::SMTPUnknownError) { smtp.send_message('message', 'ojab@example.com') }
+      server = FakeServer.new
+      def server.greeting
+        @sock.puts "300 UNKNOWN\r\n"
+      end
+      server.start
+      err = assert_raise(Net::SMTPUnknownError) { Net::SMTP.start 'localhost', server.port }
       assert_equal "300 UNKNOWN\n", err.message
       assert_equal "300", err.response.status
     end
 
     def test_unsuccessful_data
-      sock = FakeSocket.new("250 OK\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.new
+      def server.data
+        @sock.puts "250 OK\r\n"
+      end
+      server.start
+      smtp = Net::SMTP.start 'localhost', server.port
       err = assert_raise(Net::SMTPUnknownError) { smtp.data('message') }
       assert_equal "could not get 3xx (250: 250 OK\n)", err.message
       assert_equal "250", err.response.status
     end
 
     def test_crlf_injection
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, FakeSocket.new
+      server = FakeServer.new
+      smtp = Net::SMTP.new 'localhost', server.port
 
       assert_raise(ArgumentError) do
         smtp.mailfrom("foo\r\nbar")
@@ -299,91 +262,65 @@ module Net
     def test_tls_connect
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      servers = Socket.tcp_server_sockets("localhost", 0)
-      ctx = OpenSSL::SSL::SSLContext.new
-      ctx.ca_file = CA_FILE
-      ctx.key = File.open(SERVER_KEY) { |f|
-        OpenSSL::PKey::RSA.new(f)
-      }
-      ctx.cert = File.open(SERVER_CERT) { |f|
-        OpenSSL::X509::Certificate.new(f)
-      }
-      sock = nil
-      Thread.start do
-        s = accept(servers)
-        sock = OpenSSL::SSL::SSLSocket.new(s, ctx)
-        sock.sync_close = true
-        sock.accept
-        sock.write("220 localhost Service ready\r\n")
-        sock.gets
-        sock.write("250 localhost\r\n")
-        sock.gets
-        sock.write("221 localhost Service closing transmission channel\r\n")
-      end
-      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port, tls_verify: false)
+      server = FakeServer.start(tls: true)
+      smtp = Net::SMTP.new("localhost", server.port, tls_verify: false)
       smtp.enable_tls
       smtp.open_timeout = 1
-      smtp.start do
-      end
+      smtp.start{}
     ensure
-      sock&.close
-      servers&.each(&:close)
+      server.stop
     end
 
     def test_tls_connect_timeout
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      servers = Socket.tcp_server_sockets("localhost", 0)
-      sock = nil
-      Thread.start do
-        sock = accept(servers)
+      server = FakeServer.new
+      def server.init
+        sleep
       end
-      smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
+      server.start(tls: true)
+      smtp = Net::SMTP.new("localhost", server.port)
       smtp.enable_tls
       smtp.open_timeout = 0.1
       assert_raise(Net::OpenTimeout) do
-        smtp.start do
-        end
+        smtp.start{}
       end
     ensure
-      sock&.close
-      servers&.each(&:close)
+      server.stop
     end
 
     def test_eof_error_backtrace
       bug13018 = '[ruby-core:78550] [Bug #13018]'
-      servers = Socket.tcp_server_sockets("localhost", 0)
+
+      server = FakeServer.new
+      def server.ehlo(*)
+        @sock.shutdown(:WR)
+      end
+
       begin
-        sock = nil
-        t = Thread.start do
-          sock = accept(servers)
-          sock.close
-        end
-        smtp = Net::SMTP.new("localhost", servers[0].local_address.ip_port)
+        server.start
+        smtp = Net::SMTP.new("localhost", server.port)
         e = assert_raise(EOFError, bug13018) do
-          smtp.start do
-          end
+          smtp.start{}
         end
         assert_equal(EOFError, e.class, bug13018)
         assert(e.backtrace.grep(%r"\bnet/smtp\.rb:").size > 0, bug13018)
       ensure
-        sock.close if sock
-        servers.each(&:close)
-        t.join
+        server.stop
       end
     end
 
     def test_with_tls
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(tls: true)
-      smtp = Net::SMTP.new('localhost', port, tls: true, tls_verify: false)
+      server = FakeServer.start(tls: true)
+      smtp = Net::SMTP.new('localhost', server.port, tls: true, tls_verify: false)
       assert_nothing_raised do
         smtp.start{}
       end
 
-      port = fake_server_start(tls: false)
-      smtp = Net::SMTP.new('localhost', port, tls: false)
+      server = FakeServer.start(tls: false)
+      smtp = Net::SMTP.new('localhost', server.port, tls: false)
       assert_nothing_raised do
         smtp.start{}
       end
@@ -392,13 +329,13 @@ module Net
     def test_with_starttls_always
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(starttls: true)
-      smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+      server = FakeServer.start(starttls: true)
+      smtp = Net::SMTP.new('localhost', server.port, starttls: :always, tls_verify: false)
       smtp.start{}
-      assert_equal(true, @starttls_started)
+      assert_equal(true, server.starttls_started?)
 
-      port = fake_server_start(starttls: false)
-      smtp = Net::SMTP.new('localhost', port, starttls: :always, tls_verify: false)
+      server = FakeServer.start(starttls: false)
+      smtp = Net::SMTP.new('localhost', server.port, starttls: :always, tls_verify: false)
       assert_raise Net::SMTPUnsupportedCommand do
         smtp.start{}
       end
@@ -407,29 +344,29 @@ module Net
     def test_with_starttls_auto
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(starttls: true)
-      smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+      server = FakeServer.start(starttls: true)
+      smtp = Net::SMTP.new('localhost', server.port, starttls: :auto, tls_verify: false)
       smtp.start{}
-      assert_equal(true, @starttls_started)
+      assert_equal(true, server.starttls_started?)
 
-      port = fake_server_start(starttls: false)
-      smtp = Net::SMTP.new('localhost', port, starttls: :auto, tls_verify: false)
+      server = FakeServer.start(starttls: false)
+      smtp = Net::SMTP.new('localhost', server.port, starttls: :auto, tls_verify: false)
       smtp.start{}
-      assert_equal(false, @starttls_started)
+      assert_equal(false, server.starttls_started?)
     end
 
     def test_with_starttls_false
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(starttls: true)
-      smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
+      server = FakeServer.start(starttls: true)
+      smtp = Net::SMTP.new('localhost', server.port, starttls: false, tls_verify: false)
       smtp.start{}
-      assert_equal(false, @starttls_started)
+      assert_equal(false, server.starttls_started?)
 
-      port = fake_server_start(starttls: false)
-      smtp = Net::SMTP.new('localhost', port, starttls: false, tls_verify: false)
+      server = FakeServer.start(starttls: false)
+      smtp = Net::SMTP.new('localhost', server.port, starttls: false, tls_verify: false)
       smtp.start{}
-      assert_equal(false, @starttls_started)
+      assert_equal(false, server.starttls_started?)
     end
 
     def test_start
@@ -439,19 +376,19 @@ module Net
     end
 
     def test_start_with_position_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.start('localhost', port, 'myname', 'account', 'password', :plain)
       smtp.finish
     end
 
     def test_start_with_keyword_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.start('localhost', port, helo: 'myname', user: 'account', secret: 'password', authtype: :plain)
       smtp.finish
     end
 
     def test_start_password_is_secret
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.start('localhost', port, helo: 'myname', user: 'account', password: 'password', authtype: :plain)
       smtp.finish
     end
@@ -480,65 +417,65 @@ module Net
     def test_start_with_starttls_always
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(starttls: true)
-      Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
-      assert_equal(true, @starttls_started)
+      server = FakeServer.start(starttls: true)
+      Net::SMTP.start('localhost', server.port, starttls: :always, tls_verify: false){}
+      assert_equal(true, server.starttls_started?)
 
-      port = fake_server_start(starttls: false)
+      server = FakeServer.start(starttls: false)
       assert_raise Net::SMTPUnsupportedCommand do
-        Net::SMTP.start('localhost', port, starttls: :always, tls_verify: false){}
+        Net::SMTP.start('localhost', server.port, starttls: :always, tls_verify: false){}
       end
     end
 
     def test_start_with_starttls_auto
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(starttls: true)
-      Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
-      assert_equal(true, @starttls_started)
+      server = FakeServer.start(starttls: true)
+      Net::SMTP.start('localhost', server.port, starttls: :auto, tls_verify: false){}
+      assert_equal(true, server.starttls_started?)
 
-      port = fake_server_start(starttls: false)
-      Net::SMTP.start('localhost', port, starttls: :auto, tls_verify: false){}
-      assert_equal(false, @starttls_started)
+      server = FakeServer.start(starttls: false)
+      Net::SMTP.start('localhost', server.port, starttls: :auto, tls_verify: false){}
+      assert_equal(false, server.starttls_started?)
     end
 
     def test_start_with_starttls_false
       omit "openssl library not loaded" unless defined?(OpenSSL::VERSION)
 
-      port = fake_server_start(starttls: true)
-      Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
-      assert_equal(false, @starttls_started)
+      server = FakeServer.start(starttls: true)
+      Net::SMTP.start('localhost', server.port, starttls: false, tls_verify: false){}
+      assert_equal(false, server.starttls_started?)
 
-      port = fake_server_start(starttls: false)
-      Net::SMTP.start('localhost', port, starttls: false, tls_verify: false){}
-      assert_equal(false, @starttls_started)
+      server = FakeServer.start(starttls: false)
+      Net::SMTP.start('localhost', server.port, starttls: false, tls_verify: false){}
+      assert_equal(false, server.starttls_started?)
     end
 
     def test_start_auth_plain
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(auth: 'plain')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(auth: 'plain')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :plain){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      port = fake_server_start(auth: 'login')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
       end
     end
 
     def test_start_auth_login
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      port = fake_server_start(auth: 'LOGIN')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'LOGIN')
+      port = fake_server_start(auth: 'LOGIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :login){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(auth: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
       end
@@ -547,20 +484,20 @@ module Net
     def test_start_auth_cram_md5
       omit "openssl or digest library not loaded" unless defined? OpenSSL or defined? Digest
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      port = fake_server_start(auth: 'CRAM-MD5')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      port = fake_server_start(auth: 'CRAM-MD5')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :cram_md5){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'PLAIN')
+      port = fake_server_start(auth: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
       end
 
-      port = fake_server_start(user: 'account', password: 'password', authtype: 'CRAM-MD5')
+      port = fake_server_start(auth: 'CRAM-MD5')
       smtp = Net::SMTP.new('localhost', port)
       auth_cram_md5 = Net::SMTP::AuthCramMD5.new(smtp)
       auth_cram_md5.define_singleton_method(:digest_class) { raise '"openssl" or "digest" library is required' }
@@ -579,21 +516,21 @@ module Net
     end
 
     def test_start_instance_with_position_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.new('localhost', port)
       smtp.start('myname', 'account', 'password', :plain)
       smtp.finish
     end
 
     def test_start_instance_with_keyword_argument
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.new('localhost', port)
       smtp.start(helo: 'myname', user: 'account', secret: 'password', authtype: :plain)
       smtp.finish
     end
 
     def test_start_instance_password_is_secret
-      port = fake_server_start(helo: 'myname', user: 'account', password: 'password')
+      port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.new('localhost', port)
       smtp.start(helo: 'myname', user: 'account', password: 'password', authtype: :plain)
       smtp.finish
@@ -608,141 +545,236 @@ module Net
     end
 
     def test_send_smtputf_sender_without_server
-      sock = FakeSocket.new("220 OK\r\n250-test\r\n250 SMTPUTF8\r\n")
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start(smtputf8: false)
+      smtp = Net::SMTP.start 'localhost', server.port
       assert_raise(Net::SMTPUTF8RequiredError) do
         smtp.send_message('message', 'rené@example.com')
       end
     end
 
     def test_send_smtputf8_sender
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>[]}
-      sock = FakeSocket.new("250 OK\r\n250 OK\r\n354 Blah\r\n250 Queued, in a way\r\n")
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start(smtputf8: true)
+      smtp = Net::SMTP.start 'localhost', server.port
       smtp.send_message('message', 'rené@example.com', 'foo@example.com')
-      assert sock.write_io.string.include? "MAIL FROM:<rené@example.com> SMTPUTF8\r\n"
+      assert server.commands.include? "MAIL FROM:<rené@example.com> SMTPUTF8\r\n"
     end
 
     def test_send_smtputf8_sender_with_size
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>[]}
-      sock = FakeSocket.new("250 OK\r\n250 OK\r\n354 Blah\r\n250 Queued, in a way\r\n")
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start(smtputf8: true)
+      smtp = Net::SMTP.start 'localhost', server.port
       smtp.send_message('message', Net::SMTP::Address.new('rené@example.com', 'SIZE=42'), 'foo@example.com')
-      assert sock.write_io.string.include? "MAIL FROM:<rené@example.com> SIZE=42 SMTPUTF8\r\n"
+      assert server.commands.include? "MAIL FROM:<rené@example.com> SIZE=42 SMTPUTF8\r\n"
     end
 
     def test_send_smtputf_recipient
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>[]}
-      sock = FakeSocket.new("250 MAIL OK\r\n250 RCPT OK\r\n354 Blah\r\n250 Queued, in a way\r\n")
-      smtp.instance_variable_set :@socket, sock
+      server = FakeServer.start(smtputf8: true)
+      smtp = Net::SMTP.start 'localhost', server.port
       smtp.send_message('message', 'foo@example.com', 'rené@example.com')
-      assert sock.write_io.string.include? "MAIL FROM:<foo@example.com> SMTPUTF8\r\n"
+      assert server.commands.include? "MAIL FROM:<foo@example.com> SMTPUTF8\r\n"
     end
 
     def test_mailfrom_with_smtputf_detection
-      sock = FakeSocket.new
-      smtp = Net::SMTP.new 'localhost', 25
-      smtp.instance_variable_set :@socket, sock
-      smtp.instance_variable_set :@capabilities, {"SMTPUTF8"=>""}
+      server = FakeServer.start(smtputf8: true)
+      smtp = Net::SMTP.start 'localhost', server.port
       smtp.mailfrom("rené@example.com")
-      assert sock.write_io.string.include? "MAIL FROM:<rené@example.com> SMTPUTF8\r\n"
+      assert_equal "MAIL FROM:<rené@example.com> SMTPUTF8\r\n", server.commands.last
     end
 
-    private
+    def fake_server_start(**kw)
+      server = FakeServer.new
+      server.start(**kw)
+      server.port
+    end
+  end
 
-    def accept(servers)
-      Socket.accept_loop(servers) { |s, _| break s }
+  class FakeServer
+    CA_FILE = File.expand_path("../fixtures/cacert.pem", __dir__)
+    SERVER_KEY = File.expand_path("../fixtures/server.key", __dir__)
+    SERVER_CERT = File.expand_path("../fixtures/server.crt", __dir__)
+
+    @servers = []
+
+    def self.start(**kw)
+      server = self.new
+      @servers.push server
+      server.start(**kw)
+      server
     end
 
-    def fake_server_start(helo: 'localhost', user: nil, password: nil, tls: false, starttls: false, authtype: 'PLAIN')
-      @starttls_started = false
-      servers = Socket.tcp_server_sockets('localhost', 0)
-      @server_threads << Thread.start do
+    def self.stop_all
+      while (s = @servers.shift)
+        s.stop
+      end
+    end
+
+    attr_reader :port
+    attr_reader :commands
+    attr_reader :body
+
+    def starttls_started?
+      !!@starttls_started
+    end
+
+    def start(**capabilities)
+      @commands = []
+      @body = +''
+      @capa = capabilities
+      @tls = @capa.delete(:tls)
+      @servers = Socket.tcp_server_sockets('localhost', 0)
+      @port = @servers[0].local_address.ip_port
+      @server_thread = Thread.start do
         Thread.current.abort_on_exception = true
-        sock = accept(servers)
-        if tls || starttls
-          ctx = OpenSSL::SSL::SSLContext.new
-          ctx.ca_file = CA_FILE
-          ctx.key = File.open(SERVER_KEY){|f| OpenSSL::PKey::RSA.new(f)}
-          ctx.cert = File.open(SERVER_CERT){|f| OpenSSL::X509::Certificate.new(f)}
-        end
-        if tls
-          sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
-          sock.sync_close = true
-          sock.accept
-        end
-        sock.puts "220 ready\r\n"
-        while comm = sock.gets
-          case comm.chomp
-          when /\AEHLO /
-            assert_equal(helo, comm.split[1])
-            sock.puts "220-servername\r\n"
-            sock.puts "220-STARTTLS\r\n" if starttls
-            sock.puts "220 AUTH #{authtype}\r\n"
-          when "STARTTLS"
-            unless starttls
-              sock.puts "502 5.5.1 Error: command not implemented\r\n"
-              next
-            end
-            sock.puts "220 2.0.0 Ready to start TLS\r\n"
-            sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
-            sock.sync_close = true
-            sock.accept
-            @starttls_started = true
-          when /\AAUTH /
-            unless user
-              sock.puts "503 5.5.1 Error: authentication not enabled\r\n"
-              next
-            end
-            _, type, arg = comm.split
-            unless authtype.split.map(&:upcase).include? type.upcase
-              sock.puts "535 5.7.8 Error: authentication failed: no mechanism available\r\n"
-              next
-            end
-            # The account and password are fixed to "account" and "password".
-            result = case type
-                     when 'PLAIN'
-                       arg == 'AGFjY291bnQAcGFzc3dvcmQ='
-                     when 'LOGIN'
-                       sock.puts '334 VXNlcm5hbWU6'
-                       u = sock.gets.unpack1('m')
-                       sock.puts '334 UGFzc3dvcmQ6'
-                       p = sock.gets.unpack1('m')
-                       u == 'account' && p == 'password'
-                     when 'CRAM-MD5'
-                       sock.puts "334 PDEyMzQ1Njc4OTAuMTIzNDVAc2VydmVybmFtZT4=\r\n"
-                       r = sock.gets&.chomp
-                       r == 'YWNjb3VudCAyYzBjMTgxZjkxOGU2ZGM5Mjg3Zjk3N2E1ODhiMzg1YQ=='
-                     end
-            if result
-              sock.puts "235 2.7.0 Authentication successful\r\n"
-            else
-              sock.puts "535 5.7.8 Error: authentication failed: authentication failure\r\n"
-            end
-          when /\AMAIL FROM:/, /\ARCPT TO:/
-            sock.puts "250 2.1.0 Ok\r\n"
-          when "DATA"
-            sock.puts "354 End data with <CR><LF>.<CR><LF>\r\n"
-            in_data = true
-          when "."
-            sock.puts "250 2.0.0 Ok: queued as ABCDEFG\r\n"
-            in_data = false
-          when "QUIT"
-            sock.puts "221 2.0.0 Bye\r\n"
-            sock.close
-            servers.each(&:close)
-            break
-          else
-            sock.puts "502 5.5.2 Error: command not recognized\r\n" unless in_data
-          end
+        init
+        loop
+      end
+    end
+
+    def stop
+      @server_thread&.kill
+      @server_thread&.join
+      @servers&.each(&:close)
+    end
+
+    def init
+      @sock = Socket.accept_loop(@servers) { |s, _| break s }
+      if @tls
+        @sock = ssl_socket
+        @sock.sync_close = true
+        @sock.accept
+      end
+      greeting
+    end
+
+    def ssl_socket
+      ctx = OpenSSL::SSL::SSLContext.new
+      ctx.ca_file = CA_FILE
+      ctx.key = File.open(SERVER_KEY){|f| OpenSSL::PKey::RSA.new(f)}
+      ctx.cert = File.open(SERVER_CERT){|f| OpenSSL::X509::Certificate.new(f)}
+      OpenSSL::SSL::SSLSocket.new(@sock, ctx)
+    end
+
+    def greeting
+      @sock.puts "220 ready\r\n"
+    end
+
+    def ehlo(_)
+      res = ["220-servername\r\n"]
+      @capa.each do |k, v|
+        case v
+        when nil, false
+          # do nothing
+        when true
+          res.push "220-#{k.upcase}\r\n"
+        when String
+          res.push "220-#{k.upcase} #{v.upcase}\r\n"
+        when Array
+          res.push "220-#{k.upcase} #{v.map(&:upcase).join(' ')}\r\n"
+        else
+          raise "invalid capacities: #{k}=>#{v}"
         end
       end
-      port = servers[0].local_address.ip_port
-      return port
+      res.last.sub!(/^220-/, '220 ')
+      @sock.puts res.join
+    end
+
+    def starttls
+      unless @capa[:starttls]
+        @sock.puts "502 5.5.1 Error: command not implemented\r\n"
+        return
+      end
+      @sock.puts "220 2.0.0 Ready to start TLS\r\n"
+      @sock = ssl_socket
+      @sock.sync_close = true
+      @sock.accept
+      @starttls_started = true
+    end
+
+    def auth(*args)
+      unless @capa[:auth]
+        @sock.puts "503 5.5.1 Error: authentication not enabled\r\n"
+        return
+      end
+      type, arg = args
+      unless Array(@capa[:auth]).map(&:upcase).include? type.upcase
+        @sock.puts "535 5.7.8 Error: authentication failed: no mechanism available\r\n"
+        return
+      end
+      # The account and password are fixed to "account" and "password".
+      result = case type
+               when 'PLAIN'
+                 arg == 'AGFjY291bnQAcGFzc3dvcmQ='
+               when 'LOGIN'
+                 @sock.puts "334 VXNlcm5hbWU6\r\n"
+                 u = @sock.gets.unpack1('m')
+                 @sock.puts "334 UGFzc3dvcmQ6\r\n"
+                 p = @sock.gets.unpack1('m')
+                 u == 'account' && p == 'password'
+               when 'CRAM-MD5'
+                 @sock.puts "334 PDEyMzQ1Njc4OTAuMTIzNDVAc2VydmVybmFtZT4=\r\n"
+                 r = @sock.gets&.chomp
+                 r == 'YWNjb3VudCAyYzBjMTgxZjkxOGU2ZGM5Mjg3Zjk3N2E1ODhiMzg1YQ=='
+               end
+      if result
+        @sock.puts "235 2.7.0 Authentication successful\r\n"
+      else
+        @sock.puts "535 5.7.8 Error: authentication failed: authentication failure\r\n"
+      end
+    end
+
+    def mail(_)
+      @sock.puts "250 2.1.0 Ok\r\n"
+    end
+
+    def rcpt(_)
+      @sock.puts "250 2.1.0 Ok\r\n"
+    end
+
+    def data
+      @sock.puts "354 End data with <CR><LF>.<CR><LF>\r\n"
+      while (l = @sock.gets)
+        break if l.chomp == '.'
+        @body.concat l.sub(/^\./, '')
+      end
+      @sock.puts "250 2.0.0 Ok: queued as ABCDEFG\r\n"
+    end
+
+    def rset
+      @sock.puts "250 2.0.0 Ok\r\n"
+    end
+
+    def quit
+      @sock.puts "221 2.0.0 Bye\r\n"
+      @sock.close
+      @servers.each(&:close)
+    end
+
+    def loop
+      while (comm = @sock.gets)
+        @commands.push comm.encode('utf-8', 'utf-8')
+        case comm.chomp
+        when /\AEHLO /
+          ehlo(comm.split[1])
+        when "STARTTLS"
+          starttls
+        when /\AAUTH /
+          auth(*$'.split)
+        when /\AMAIL FROM:/
+          mail($')
+        when /\ARCPT TO:/
+          rcpt($')
+        when "DATA"
+          data
+        when "RSET"
+          rset
+        when "QUIT"
+          quit
+          break
+        else
+          @sock.puts "502 5.5.2 Error: command not recognized\r\n"
+        end
+      end
+    rescue Errno::ECONNRESET
+      nil
     end
   end
 end
