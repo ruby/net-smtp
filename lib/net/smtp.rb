@@ -768,7 +768,8 @@ module Net
     def send_message(msgstr, from_addr, *to_addrs)
       to_addrs.flatten!
       raise IOError, 'closed session' unless @socket
-      mailfrom from_addr, any_require_smtputf8(to_addrs)
+      from_addr = Address.new(from_addr, 'SMTPUTF8') if any_require_smtputf8(to_addrs) && capable?('SMTPUTF8')
+      mailfrom from_addr
       rcptto_list(to_addrs) {data msgstr}
     end
 
@@ -823,7 +824,8 @@ module Net
     def open_message_stream(from_addr, *to_addrs, &block)   # :yield: stream
       to_addrs.flatten!
       raise IOError, 'closed session' unless @socket
-      mailfrom from_addr, any_require_smtputf8(to_addrs)
+      from_addr = Address.new(from_addr, 'SMTPUTF8') if any_require_smtputf8(to_addrs) && capable?('SMTPUTF8')
+      mailfrom from_addr
       rcptto_list(to_addrs) {data(&block)}
     end
 
@@ -890,8 +892,8 @@ module Net
     end
 
     # +from_addr+ is +String+ or +Net::SMTP::Address+
-    def mailfrom(from_addr, require_smtputf8 = false)
-      addr = if require_smtputf8 || requires_smtputf8(from_addr)
+    def mailfrom(from_addr)
+      addr = if requires_smtputf8(from_addr)
                raise SMTPUTF8RequiredError, "Message requires SMTPUTF8 but server does not support that" unless capable? "SMTPUTF8"
                Address.new(from_addr, "SMTPUTF8")
              else
@@ -1128,7 +1130,7 @@ module Net
           @address = address
           @parameters = []
         end
-        @parameters = (parameters + args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}
+        @parameters = (parameters + args + [kw_args]).map{|param| Array(param)}.flatten(1).map{|param| Array(param).compact.join('=')}.uniq
       end
 
       def to_s
