@@ -75,10 +75,6 @@ module Net
     include SMTPError
   end
 
-  # Represents a need to use SMTPUTF8 when the server does not support it
-  class SMTPUTF8RequiredError < SMTPUnsupportedCommand
-  end
-
   #
   # == What is This Library?
   #
@@ -760,7 +756,6 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
-    # * Net::SMTPUTF8RequiredError
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
@@ -816,7 +811,6 @@ module Net
     # * Net::SMTPServerBusy
     # * Net::SMTPSyntaxError
     # * Net::SMTPFatalError
-    # * Net::SMTPUTF8RequiredError
     # * Net::SMTPUnknownError
     # * Net::ReadTimeout
     # * IOError
@@ -893,8 +887,7 @@ module Net
 
     # +from_addr+ is +String+ or +Net::SMTP::Address+
     def mailfrom(from_addr)
-      addr = if requires_smtputf8(from_addr)
-               raise SMTPUTF8RequiredError, "Message requires SMTPUTF8 but server does not support that" unless capable? "SMTPUTF8"
+      addr = if requires_smtputf8(from_addr) && capable?("SMTPUTF8")
                Address.new(from_addr, "SMTPUTF8")
              else
                Address.new(from_addr)
