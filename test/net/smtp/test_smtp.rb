@@ -547,9 +547,8 @@ module Net
     def test_send_smtputf_sender_without_server
       server = FakeServer.start(smtputf8: false)
       smtp = Net::SMTP.start 'localhost', server.port
-      assert_raise(Net::SMTPUTF8RequiredError) do
-        smtp.send_message('message', 'rené@example.com')
-      end
+      smtp.send_message('message', 'rené@example.com', 'foo@example.com')
+      assert server.commands.include? "MAIL FROM:<rené@example.com>\r\n"
     end
 
     def test_send_smtputf8_sender
