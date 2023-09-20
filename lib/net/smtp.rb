@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 # = net/smtp.rb
 #
 # Copyright (c) 1999-2007 Yukihiro Matsumoto.
@@ -22,7 +23,6 @@ rescue LoadError
 end
 
 module Net
-
   # Module mixed in to all SMTP error classes
   module SMTPError
     # This *class* is a module for backward compatibility.
@@ -36,7 +36,7 @@ module Net
         @message = message
       else
         @response = nil
-        @message = message || response 
+        @message = message || response
       end
     end
 
@@ -187,7 +187,7 @@ module Net
   #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
   #
   class SMTP < Protocol
-    VERSION = "0.3.3"
+    VERSION = "0.4.0"
 
     # The default SMTP port number, 25.
     def SMTP.default_port
@@ -210,7 +210,7 @@ module Net
 
     def SMTP.default_ssl_context(ssl_context_params = nil)
       context = OpenSSL::SSL::SSLContext.new
-      context.set_params(ssl_context_params ? ssl_context_params : {})
+      context.set_params(ssl_context_params || {})
       context
     end
 
@@ -281,7 +281,7 @@ module Net
     attr_accessor :esmtp
 
     # +true+ if the SMTP object uses ESMTP (which it does by default).
-    alias :esmtp? :esmtp
+    alias esmtp? esmtp
 
     # true if server advertises STARTTLS.
     # You cannot get valid value before opening SMTP session.
@@ -829,8 +829,6 @@ module Net
     # Authentication
     #
 
-    public
-
     DEFAULT_AUTH_TYPE = :plain
 
     def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
@@ -1130,11 +1128,9 @@ module Net
         @address
       end
     end
-
   end   # class SMTP
 
   SMTPSession = SMTP # :nodoc:
-
 end
 
 require_relative 'smtp/authenticator'

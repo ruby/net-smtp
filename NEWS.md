@@ -1,10 +1,25 @@
 # NEWS
 
-## Version 0.4.0
+## Version 0.4.0 (2023-09-20)
 
-*  add Net::SMTP::Authenticator class and auth_* methods are separated from the Net::SMTP class. <https://github.com/ruby/net-smtp/pull/53/files>
+### Improvements
 
-*  Add SMTPUTF8 support <https://github.com/ruby/net-smtp/pull/49>
+* add Net::SMTP::Authenticator class and auth_* methods are separated from the Net::SMTP class. <https://github.com/ruby/net-smtp/pull/53>
+      This allows you to add a new authentication method to Net::SMTP.
+      Create a class with an `auth` method that inherits Net::SMTP::Authenticator.
+      The `auth` method has two arguments, `user` and `secret`.
+      Send an instruction to the SMTP server by using the `continue` or `finish` method.
+      For more information, see lib/net/smtp/auto _*.rb.
+* Add SMTPUTF8 support <https://github.com/ruby/net-smtp/pull/49>
+
+### Fixes
+
+* Revert "Replace Timeout.timeout with socket timeout" <https://github.com/ruby/net-smtp/pull/51>
+* Fixed issue sending emails to unaffected recipients on 53x error <https://github.com/ruby/net-smtp/pull/56>
+
+### Others
+
+* Removed unnecessary Subversion keywords <https://github.com/ruby/net-smtp/pull/57>
 
 ## Version 0.3.3 (2022-10-29)
 
