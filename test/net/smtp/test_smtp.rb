@@ -138,23 +138,28 @@ module Net
     def test_auth_cram_md5
       server = FakeServer.start(auth: 'CRAM-MD5')
       smtp = Net::SMTP.start 'localhost', server.port
-      assert smtp.auth(:cram_md5, "account", password: "password").success?
+      assert smtp.auth(:cram_md5, "account", password: "password",
+                       warn_deprecation: false).success?
     end
 
     def test_auth_login
       server = FakeServer.start(auth: 'login')
       smtp = Net::SMTP.start 'localhost', server.port
-      assert smtp.authenticate("account", "password", :login).success?
+      assert smtp.auth(:login, "account", "password",
+                       warn_deprecation: false).success?
 
       server = FakeServer.start(auth: 'login')
       smtp = Net::SMTP.start 'localhost', server.port
-      assert smtp.auth("LOGIN", username: "account", secret: "password").success?
+      assert smtp.auth(username: "account", secret: "password",
+                       type: :login, warn_deprecation: false).success?
     end
 
     def test_unsucessful_auth_login
       server = FakeServer.start(auth: 'login')
       smtp = Net::SMTP.start 'localhost', server.port
-      err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :login) }
+      err = assert_raise(Net::SMTPAuthenticationError) {
+        smtp.auth(:login, "foo", "bar", warn_deprecation: false)
+      }
       assert_equal "535 5.7.8 Error: authentication failed: authentication failure\n", err.message
       assert_equal "535", err.response.status
     end
@@ -167,7 +172,9 @@ module Net
         @sock.puts "235 2.7.0 Authentication successful\r\n"
       end
       smtp = Net::SMTP.start 'localhost', server.port
-      err = assert_raise(Net::SMTPUnknownError) { smtp.authenticate("account", "password", :login) }
+      err = assert_raise(Net::SMTPUnknownError) {
+        smtp.auth(:login, "account", "password", warn_deprecation: false)
+      }
       assert_equal "235 2.7.0 Authentication successful\n", err.message
       assert_equal "235", err.response.status
     end
@@ -517,16 +524,19 @@ module Net
 
     def test_start_auth_login
       port = fake_server_start(auth: 'LOGIN')
-      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
+      Net::SMTP.start('localhost', port, user: 'account', password: 'password',
+                      authtype: :login, auth: {warn_deprecation: false}){}
 
       port = fake_server_start(auth: 'LOGIN')
       assert_raise Net::SMTPAuthenticationError do
-        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :login){}
+        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid',
+                        authtype: :login, auth: {warn_deprecation: false}){}
       end
 
       port = fake_server_start(auth: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
-        Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :login){}
+        Net::SMTP.start('localhost', port, user: 'account', password: 'password',
+                        authtype: :login, auth: {warn_deprecation: false}){}
       end
     end
 
@@ -534,16 +544,19 @@ module Net
       omit "openssl or digest library not loaded" unless defined? OpenSSL or defined? Digest
 
       port = fake_server_start(auth: 'CRAM-MD5')
-      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: "CRAM-MD5"){}
+      Net::SMTP.start('localhost', port, user: 'account', password: 'password',
+                      authtype: "CRAM-MD5", auth: {warn_deprecation: false}){}
 
       port = fake_server_start(auth: 'CRAM-MD5')
       assert_raise Net::SMTPAuthenticationError do
-        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :cram_md5){}
+        Net::SMTP.start('localhost', port, user: 'account', password: 'invalid',
+                        authtype: :cram_md5, auth: {warn_deprecation: false}){}
       end
 
       port = fake_server_start(auth: 'PLAIN')
       assert_raise Net::SMTPAuthenticationError do
-        Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
+        Net::SMTP.start('localhost', port, user: 'account', password: 'password',
+                        authtype: :cram_md5, auth: {warn_deprecation: false}){}
       end
     end
 
