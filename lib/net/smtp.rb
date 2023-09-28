@@ -835,7 +835,7 @@ module Net
       check_auth_method authtype
       check_auth_args user, secret
       authenticator = Authenticator.auth_class(authtype).new(self)
-      authenticator.auth(user, secret)
+      critical { authenticator.auth(user, secret) }
     end
 
     private
