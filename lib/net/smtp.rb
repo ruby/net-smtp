@@ -79,13 +79,13 @@ module Net
   # == What is This Library?
   #
   # This library provides functionality to send internet
-  # mail via SMTP, the Simple Mail Transfer Protocol. For details of
-  # SMTP itself, see [RFC5321] (http://www.ietf.org/rfc/rfc5321.txt).
-  # This library also implements SMTP authentication, which is often
+  # mail via \SMTP, the Simple Mail Transfer Protocol. For details of
+  # \SMTP itself, see [RFC5321[https://www.rfc-editor.org/rfc/rfc5321.txt]].
+  # This library also implements \SMTP authentication, which is often
   # necessary for message composers to submit messages to their
-  # outgoing SMTP server, see
-  # [RFC6409](http://www.ietf.org/rfc/rfc6503.txt),
-  # and [SMTPUTF8](http://www.ietf.org/rfc/rfc6531.txt), which is
+  # outgoing \SMTP server, see
+  # [RFC6409[https://www.rfc-editor.org/rfc/rfc6409.html]],
+  # and [SMTPUTF8[https://www.rfc-editor.org/rfc/rfc6531.txt]], which is
   # necessary to send messages to/from addresses containing characters
   # outside the ASCII range.
   #
@@ -93,18 +93,20 @@ module Net
   #
   # This library does NOT provide functions to compose internet mails.
   # You must create them by yourself. If you want better mail support,
-  # try RubyMail or TMail or search for alternatives in
+  # try the mail[https://rubygems.org/gems/mail] or
+  # rmail[https://rubygems.org/gems/rmail] gems, or search for alternatives in
   # {RubyGems.org}[https://rubygems.org/] or {The Ruby
   # Toolbox}[https://www.ruby-toolbox.com/].
   #
-  # FYI: the official specification on internet mail is: [RFC5322] (http://www.ietf.org/rfc/rfc5322.txt).
+  # FYI: the official specification on internet mail is:
+  # [RFC5322[https://www.rfc-editor.org/rfc/rfc5322.txt]].
   #
   # == Examples
   #
   # === Sending Messages
   #
-  # You must open a connection to an SMTP server before sending messages.
-  # The first argument is the address of your SMTP server, and the second
+  # You must open a connection to an \SMTP server before sending messages.
+  # The first argument is the address of your \SMTP server, and the second
   # argument is the port number. Using SMTP.start with a block is the simplest
   # way to do this. This way, the SMTP connection is closed automatically
   # after the block is executed.
@@ -114,7 +116,7 @@ module Net
   #       # Use the SMTP object smtp only in this block.
   #     end
   #
-  # Replace 'your.smtp.server' with your SMTP server. Normally
+  # Replace 'your.smtp.server' with your \SMTP server. Normally
   # your system manager or internet provider supplies a server
   # for you.
   #
@@ -147,7 +149,7 @@ module Net
   #     smtp.send_message msgstr, 'from@address', 'to@address'
   #     smtp.finish
   #
-  # You can also use the block form of SMTP.start/SMTP#start.  This closes
+  # You can also use the block form of SMTP.start or SMTP#start.  This closes
   # the SMTP session automatically:
   #
   #     # using block form of SMTP.start
@@ -160,31 +162,34 @@ module Net
   # === HELO domain
   #
   # In almost all situations, you must provide a third argument
-  # to SMTP.start/SMTP#start. This is the domain name which you are on
+  # to SMTP.start or SMTP#start. This is the domain name which you are on
   # (the host to send mail from). It is called the "HELO domain".
-  # The SMTP server will judge whether it should send or reject
+  # The \SMTP server will judge whether it should send or reject
   # the SMTP session by inspecting the HELO domain.
   #
-  #     Net::SMTP.start('your.smtp.server', 25
-  #                     helo: 'mail.from.domain') { |smtp| ... }
+  #     Net::SMTP.start('your.smtp.server', 25, helo: 'mail.from.domain') do |smtp|
+  #       smtp.send_message msgstr, 'from@address', 'to@address'
+  #     end
   #
-  # === SMTP Authentication
+  # === \SMTP Authentication
   #
-  # The Net::SMTP class supports three authentication schemes;
-  # PLAIN, LOGIN and CRAM MD5.  (SMTP Authentication: [RFC2554])
-  # To use SMTP authentication, pass extra arguments to
-  # SMTP.start/SMTP#start.
+  # The Net::SMTP class supports the \SMTP extension for SASL Authentication
+  # [RFC4954[https://www.rfc-editor.org/rfc/rfc4954.html]] and the following
+  # SASL mechanisms: +PLAIN+, +LOGIN+ _(deprecated)_, and +CRAM-MD5+
+  # _(deprecated)_.
+  #
+  # To use \SMTP authentication, pass extra arguments to
+  # SMTP.start or SMTP#start.
   #
   #     # PLAIN
-  #     Net::SMTP.start('your.smtp.server', 25
+  #     Net::SMTP.start('your.smtp.server', 25,
   #                     user: 'Your Account', secret: 'Your Password', authtype: :plain)
-  #     # LOGIN
-  #     Net::SMTP.start('your.smtp.server', 25
-  #                     user: 'Your Account', secret: 'Your Password', authtype: :login)
   #
-  #     # CRAM MD5
-  #     Net::SMTP.start('your.smtp.server', 25
-  #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
+  # Support for other SASL mechanisms—such as +EXTERNAL+, +OAUTHBEARER+,
+  # +SCRAM-SHA-256+, and +XOAUTH2+—will be added in a future release.
+  #
+  # The +LOGIN+ and +CRAM-MD5+ mechanisms are still available for backwards
+  # compatibility, but are deprecated and should be avoided.
   #
   class SMTP < Protocol
     VERSION = "0.4.0"
@@ -229,10 +234,13 @@ module Net
     # If the hostname in the server certificate is different from +address+,
     # it can be specified with +tls_hostname+.
     #
-    # Additional SSLContext params can be added to +ssl_context_params+ hash argument and are passed to
-    # +OpenSSL::SSL::SSLContext#set_params+
+    # Additional SSLContext[https://ruby.github.io/openssl/OpenSSL/SSL/SSLContext.html]
+    # params can be added to the +ssl_context_params+ hash argument and are
+    # passed to {OpenSSL::SSL::SSLContext#set_params}[https://ruby.github.io/openssl/OpenSSL/SSL/SSLContext.html#method-i-set_params].
     #
-    # +tls_verify: true+ is equivalent to +ssl_context_params: { verify_mode: OpenSSL::SSL::VERIFY_PEER }+.
+    # <tt>tls_verify: true</tt> is equivalent to <tt>ssl_context_params: {
+    # verify_mode: OpenSSL::SSL::VERIFY_PEER }</tt>.
+    #
     # This method does not open the TCP connection.  You can use
     # SMTP.start instead of SMTP.new if you want to do everything
     # at once.  Otherwise, follow SMTP.new with SMTP#start.
@@ -338,7 +346,7 @@ module Net
 
     alias ssl? tls?
 
-    # Enables SMTP/TLS (SMTPS: SMTP over direct TLS connection) for
+    # Enables SMTP/TLS (SMTPS: \SMTP over direct TLS connection) for
     # this object.  Must be called before the connection is established
     # to have any effect.  +context+ is a OpenSSL::SSL::SSLContext object.
     def enable_tls(context = nil)
@@ -457,7 +465,10 @@ module Net
     #
     # This method is equivalent to:
     #
-    #   Net::SMTP.new(address, port).start(helo: helo_domain, user: account, secret: password, authtype: authtype, tls_verify: flag, tls_hostname: hostname, ssl_context_params: nil)
+    #   Net::SMTP.new(address, port, tls_verify: flag, tls_hostname: hostname, ssl_context_params: nil)
+    #     .start(helo: helo_domain, user: account, secret: password, authtype: authtype)
+    #
+    # See also: Net::SMTP.new, #start
     #
     # === Example
     #
@@ -482,12 +493,6 @@ module Net
     # +helo+ is the _HELO_ _domain_ provided by the client to the
     # server (see overview comments); it defaults to 'localhost'.
     #
-    # The remaining arguments are used for SMTP authentication, if required
-    # or desired.  +user+ is the account name; +secret+ is your password
-    # or other authentication token; and +authtype+ is the authentication
-    # type, one of :plain, :login, or :cram_md5.  See the discussion of
-    # SMTP Authentication in the overview notes.
-    #
     # If +tls+ is true, enable TLS. The default is false.
     # If +starttls+ is :always, enable STARTTLS, if +:auto+, use STARTTLS when the server supports it,
     # if false, disable STARTTLS.
@@ -496,10 +501,26 @@ module Net
     # If the hostname in the server certificate is different from +address+,
     # it can be specified with +tls_hostname+.
     #
-    # Additional SSLContext params can be added to +ssl_context_params+ hash argument and are passed to
-    # +OpenSSL::SSL::SSLContext#set_params+
+    # Additional SSLContext[https://ruby.github.io/openssl/OpenSSL/SSL/SSLContext.html]
+    # params can be added to the +ssl_context_params+ hash argument and are
+    # passed to {OpenSSL::SSL::SSLContext#set_params}[https://ruby.github.io/openssl/OpenSSL/SSL/SSLContext.html#method-i-set_params].
     #
-    # +tls_verify: true+ is equivalent to +ssl_context_params: { verify_mode: OpenSSL::SSL::VERIFY_PEER }+.
+    # <tt>tls_verify: true</tt> is equivalent to <tt>ssl_context_params: {
+    # verify_mode: OpenSSL::SSL::VERIFY_PEER }</tt>.
+    #
+    # The remaining arguments are used for \SMTP authentication, if required or
+    # desired.
+    #
+    # +authtype+ is the SASL authentication mechanism.
+    #
+    # +user+ is the authentication or authorization identity.
+    #
+    # +secret+ or +password+ is your password or other authentication token.
+    #
+    # These will be sent to #authenticate as positional arguments—the exact
+    # semantics are dependent on the +authtype+.
+    #
+    # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
     #
     # === Errors
     #
@@ -527,7 +548,7 @@ module Net
       new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
     end
 
-    # +true+ if the SMTP session has been started.
+    # +true+ if the \SMTP session has been started.
     def started?
       @started
     end
@@ -544,11 +565,21 @@ module Net
     # +helo+ is the _HELO_ _domain_ that you'll dispatch mails from; see
     # the discussion in the overview notes.
     #
-    # If both of +user+ and +secret+ are given, SMTP authentication
-    # will be attempted using the AUTH command.  +authtype+ specifies
-    # the type of authentication to attempt; it must be one of
-    # :login, :plain, and :cram_md5.  See the notes on SMTP Authentication
-    # in the overview.
+    # The remaining arguments are used for \SMTP authentication, if required or
+    # desired.
+    #
+    # +authtype+ is the SASL authentication mechanism.
+    #
+    # +user+ is the authentication or authorization identity.
+    #
+    # +secret+ or +password+ is your password or other authentication token.
+    #
+    # These will be sent to #authenticate as positional arguments—the exact
+    # semantics are dependent on the +authtype+.
+    #
+    # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
+    #
+    # See also: Net::SMTP.start
     #
     # === Block Usage
     #
@@ -831,6 +862,13 @@ module Net
 
     DEFAULT_AUTH_TYPE = :plain
 
+    # Authenticates with the server, using the "AUTH" command.
+    #
+    # +authtype+ is the name of a SASL authentication mechanism.
+    #
+    # All arguments—other than +authtype+—are forwarded to the authenticator.
+    # Different authenticators may interpret the +user+ and +secret+
+    # arguments differently.
     def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
       check_auth_method authtype
       check_auth_args user, secret
