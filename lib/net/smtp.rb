@@ -316,12 +316,13 @@ module Net
       auth_capable?('CRAM-MD5')
     end
 
+    # Returns whether the server advertises support for the authentication type.
+    # You cannot get valid result before opening SMTP session.
     def auth_capable?(type)
       return nil unless @capabilities
       return false unless @capabilities['AUTH']
       @capabilities['AUTH'].include?(type)
     end
-    private :auth_capable?
 
     # Returns supported authentication methods on this server.
     # You cannot get valid value before opening SMTP session.
