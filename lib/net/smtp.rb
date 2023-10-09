@@ -175,8 +175,8 @@ module Net
   #
   # The Net::SMTP class supports the \SMTP extension for SASL Authentication
   # [RFC4954[https://www.rfc-editor.org/rfc/rfc4954.html]] and the following
-  # SASL mechanisms: +PLAIN+, +LOGIN+ _(deprecated)_, and +CRAM-MD5+
-  # _(deprecated)_.
+  # SASL mechanisms: +ANONYMOUS+, +EXTERNAL+, +OAUTHBEARER+, +PLAIN+,
+  # +SCRAM-SHA-1+, +SCRAM-SHA-256+, and +XOAUTH2+.
   #
   # To use \SMTP authentication, pass extra arguments to
   # SMTP.start or SMTP#start.
@@ -185,10 +185,38 @@ module Net
   #     Net::SMTP.start('your.smtp.server', 25,
   #                     username: 'Your Account', secret: 'Your Password', authtype: :plain)
   #
-  # Support for other SASL mechanisms-such as +EXTERNAL+, +OAUTHBEARER+,
-  # +SCRAM-SHA-256+, and +XOAUTH2+-will be added in a future release.
+  #     # SCRAM-SHA-256
+  #     Net::SMTP.start("your.smtp.server", 25,
+  #                     user: "authentication identity", secret: password,
+  #                     authtype: :scram_sha_256)
+  #     Net::SMTP.start("your.smtp.server", 25,
+  #                     auth: {type:     :scram_sha_256,
+  #                            username: "authentication identity",
+  #                            password: password,
+  #                            authzid:  "authorization identity"}) # optional
   #
-  # The +LOGIN+ and +CRAM-MD5+ mechanisms are still available for backwards
+  #     # OAUTHBEARER
+  #     Net::SMTP.start("your.smtp.server", 25,
+  #                     auth: {type:         :oauthbearer,
+  #                            oauth2_token: oauth2_access_token,
+  #                            authzid:      "authorization identity", # optional
+  #                            host:         "your.smtp.server",       # optional
+  #                            port:         25})                      # optional
+  #
+  #     # XOAUTH2
+  #     Net::SMTP.start("your.smtp.server", 25,
+  #                     user: "username", secret: oauth2_access_token, authtype: :xoauth2)
+  #     Net::SMTP.start("your.smtp.server", 25,
+  #                     auth: {type:         :xoauth2,
+  #                            username:     "username",
+  #                            oauth2_token: oauth2_token})
+  #
+  #     # EXTERNAL
+  #     Net::SMTP.start("your.smtp.server", 587,
+  #                     starttls: :always, ssl_context_params: ssl_ctx_params,
+  #                     authtype: "external")
+  #
+  # +DIGEST-MD5+, +LOGIN+, and +CRAM-MD5+ are still available for backwards
   # compatibility, but are deprecated and should be avoided.
   #
   class SMTP < Protocol
@@ -921,8 +949,9 @@ module Net
 
     private
 
-    def check_auth_args(type_arg = nil, *args, type: nil, **kwargs)
+    def check_auth_args(type_arg = nil, *args, type: nil, user: nil, **kwargs)
       type ||= type_arg || DEFAULT_AUTH_TYPE
+      kwargs[:username] ||= user if user
       klass = Authenticator.auth_class(type) or
         raise ArgumentError, "wrong authentication type #{type}"
       klass.check_args(*args, **kwargs)
@@ -1035,6 +1064,21 @@ module Net
       validate_line reqline
       @socket.writeline reqline
       recv_response()
+    end
+
+    # Returns a successful Response.
+    #
+    # Yields continuation data and replies to the server using the block result.
+    #
+    # Raises an exception for any non-successful, non-continuation response.
+    def send_command_with_continuations(*args)
+      server_resp = get_response args.join(" ")
+      while server_resp.continue?
+        client_resp = yield server_resp.string.strip.split(nil, 2).last
+        server_resp = get_response client_resp
+      end
+      server_resp.success? or raise server_resp.exception_class.new(server_resp)
+      server_resp
     end
 
     private

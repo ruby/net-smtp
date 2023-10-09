@@ -545,16 +545,6 @@ module Net
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
       end
-
-      port = fake_server_start(auth: 'CRAM-MD5')
-      smtp = Net::SMTP.new('localhost', port)
-      auth_cram_md5 = Net::SMTP::AuthCramMD5.new(smtp)
-      auth_cram_md5.define_singleton_method(:digest_class) { raise '"openssl" or "digest" library is required' }
-      Net::SMTP::AuthCramMD5.define_singleton_method(:new) { |_| auth_cram_md5 }
-      e = assert_raise RuntimeError do
-        smtp.start(user: 'account', password: 'password', authtype: :cram_md5){}
-      end
-      assert_equal('"openssl" or "digest" library is required', e.message)
     end
 
     def test_start_instance
