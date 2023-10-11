@@ -898,6 +898,22 @@ module Net
         raise ArgumentError, "wrong number of arguments " \
                              "(given %d, expected 0..3)" % [args.length]
       end
+      auth(authtype, *args, **kwargs, &block)
+    end
+
+    # call-seq:
+    #   auth(type = DEFAULT_AUTH_TYPE, ...)
+    #   auth(type: DEFAULT_AUTH_TYPE, **kwargs, &block)
+    #
+    # All arguments besides +mechanism+ are forwarded directly to the
+    # authenticator.  Alternatively, +mechanism+ can be provided by the +type+
+    # keyword parameter.  Positional parameters cannot be used with +type+.
+    #
+    # Different authenticators take different options, but common options
+    # include +authcid+ for authentication identity, +authzid+ for authorization
+    # identity, +username+ for either "authentication identity" or
+    # "authorization identity" depending on the +mechanism+, and +password+.
+    def auth(authtype = DEFAULT_AUTH_TYPE, *args, **kwargs, &block)
       authtype, args, kwargs = check_auth_args authtype, *args, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
       authenticator.auth(*args, **kwargs, &block)
