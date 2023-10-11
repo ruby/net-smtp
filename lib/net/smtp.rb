@@ -878,6 +878,10 @@ module Net
 
     DEFAULT_AUTH_TYPE = :plain
 
+    # call-seq:
+    #   authenticate(authtype = DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(username, secret, authtype = DEFAULT_AUTH_TYPE, **, &)
+    #
     # Authenticates with the server, using the "AUTH" command.
     #
     # +authtype+ is the name of a SASL authentication mechanism.
@@ -885,10 +889,17 @@ module Net
     # All arguments-other than +authtype+-are forwarded to the authenticator.
     # Different authenticators may interpret the +username+ and +secret+
     # arguments differently.
-    def authenticate(username, secret, authtype = DEFAULT_AUTH_TYPE, **kwargs, &block)
-      check_auth_args authtype, username, secret, **kwargs
+    def authenticate(*args, **kwargs, &block)
+      case args.length
+      when 1, 3 then authtype = args.pop
+      when (4..)
+        raise ArgumentError, "wrong number of arguments " \
+                             "(given %d, expected 0..3)" % [args.length]
+      end
+      authtype ||= DEFAULT_AUTH_TYPE
+      check_auth_args authtype, *args, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
-      authenticator.auth(username, secret, **kwargs, &block)
+      authenticator.auth(*args, **kwargs, &block)
     end
 
     private
