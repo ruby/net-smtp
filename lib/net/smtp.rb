@@ -183,7 +183,7 @@ module Net
   #
   #     # PLAIN
   #     Net::SMTP.start('your.smtp.server', 25,
-  #                     user: 'Your Account', secret: 'Your Password', authtype: :plain)
+  #                     username: 'Your Account', secret: 'Your Password', authtype: :plain)
   #
   # Support for other SASL mechanisms-such as +EXTERNAL+, +OAUTHBEARER+,
   # +SCRAM-SHA-256+, and +XOAUTH2+-will be added in a future release.
@@ -460,15 +460,15 @@ module Net
     #
     # :call-seq:
     #  start(address, port = nil, helo: 'localhost', auth: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
-    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
-    #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(address, port = nil, helo: 'localhost', username: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
+    #  start(address, port = nil, helo = 'localhost', username = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Creates a new Net::SMTP object and connects to the server.
     #
     # This method is equivalent to:
     #
     #   Net::SMTP.new(address, port, tls_verify: flag, tls_hostname: hostname, ssl_context_params: nil)
-    #     .start(helo: helo_domain, user: account, secret: password, authtype: authtype)
+    #     .start(helo: helo_domain, username: account, secret: password, authtype: authtype)
     #
     # See also: Net::SMTP.new, #start
     #
@@ -515,7 +515,7 @@ module Net
     #
     # +authtype+ is the SASL authentication mechanism.
     #
-    # +user+ is the authentication or authorization identity.
+    # +username+ or +user+ is the authentication or authorization identity.
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
@@ -541,17 +541,18 @@ module Net
     #
     def SMTP.start(address, port = nil, *args, helo: nil,
                    user: nil, secret: nil, password: nil, authtype: nil,
+                   username: nil,
                    auth: nil,
                    tls: false, starttls: :auto,
                    tls_verify: true, tls_hostname: nil, ssl_context_params: nil,
                    &block)
       raise ArgumentError, "wrong number of arguments (given #{args.size + 2}, expected 1..6)" if args.size > 4
       helo ||= args[0] || 'localhost'
-      user ||= args[1]
+      username ||= user || args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
       new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params)
-        .start(helo: helo, user: user, secret: secret, authtype: authtype, auth: auth, &block)
+        .start(helo: helo, username: username, secret: secret, authtype: authtype, auth: auth, &block)
     end
 
     # +true+ if the \SMTP session has been started.
@@ -561,8 +562,8 @@ module Net
 
     #
     # :call-seq:
-    #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil) { |smtp| ... }
-    #  start(helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(helo: 'localhost', username: nil, secret: nil, authtype: nil) { |smtp| ... }
+    #  start(helo = 'localhost', username = nil, secret = nil, authtype = nil) { |smtp| ... }
     #  start(helo = 'localhost', auth: {type: nil, **auth_kwargs}) { |smtp| ... }
     #
     # Opens a TCP connection and starts the SMTP session.
@@ -577,7 +578,7 @@ module Net
     #
     # +authtype+ is the SASL authentication mechanism.
     #
-    # +user+ is the authentication or authorization identity.
+    # +username+ or +user+ is the authentication or authorization identity.
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
@@ -603,7 +604,7 @@ module Net
     #
     #     require 'net/smtp'
     #     smtp = Net::SMTP.new('smtp.mail.server', 25)
-    #     smtp.start(helo: helo_domain, user: account, secret: password, authtype: authtype) do |smtp|
+    #     smtp.start(helo: helo_domain, username: account, secret: password, authtype: authtype) do |smtp|
     #       smtp.send_message msgstr, 'from@example.com', ['dest@example.com']
     #     end
     #
@@ -628,11 +629,11 @@ module Net
     # * IOError
     #
     def start(*args, helo: nil,
-              user: nil, secret: nil, password: nil,
+              user: nil, username: nil, secret: nil, password: nil,
               authtype: nil, auth: nil)
       raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
       helo ||= args[0] || 'localhost'
-      user ||= args[1]
+      username ||= user || args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
       auth ||= {}
@@ -650,13 +651,13 @@ module Net
       end
       if block_given?
         begin
-          do_start helo, user, secret, authtype, **auth
+          do_start helo, username, secret, authtype, **auth
           return yield(self)
         ensure
           do_finish
         end
       else
-        do_start helo, user, secret, authtype, **auth
+        do_start helo, username, secret, authtype, **auth
         return self
       end
     end
@@ -882,12 +883,12 @@ module Net
     # +authtype+ is the name of a SASL authentication mechanism.
     #
     # All arguments-other than +authtype+-are forwarded to the authenticator.
-    # Different authenticators may interpret the +user+ and +secret+
+    # Different authenticators may interpret the +username+ and +secret+
     # arguments differently.
-    def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE, **kwargs, &block)
-      check_auth_args authtype, user, secret, **kwargs
+    def authenticate(username, secret, authtype = DEFAULT_AUTH_TYPE, **kwargs, &block)
+      check_auth_args authtype, username, secret, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
-      authenticator.auth(user, secret, **kwargs, &block)
+      authenticator.auth(username, secret, **kwargs, &block)
     end
 
     private
