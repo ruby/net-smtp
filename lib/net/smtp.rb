@@ -879,12 +879,14 @@ module Net
     DEFAULT_AUTH_TYPE = :plain
 
     # call-seq:
-    #   authenticate(authtype = DEFAULT_AUTH_TYPE, **, &)
-    #   authenticate(username, secret, authtype = DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(type: DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(type = DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(username, secret, type: DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(username, secret, type = DEFAULT_AUTH_TYPE, **, &)
     #
     # Authenticates with the server, using the "AUTH" command.
     #
-    # +authtype+ is the name of a SASL authentication mechanism.
+    # +type+ is the name of a SASL authentication mechanism.
     #
     # All arguments-other than +authtype+-are forwarded to the authenticator.
     # Different authenticators may interpret the +username+ and +secret+
@@ -896,19 +898,19 @@ module Net
         raise ArgumentError, "wrong number of arguments " \
                              "(given %d, expected 0..3)" % [args.length]
       end
-      authtype ||= DEFAULT_AUTH_TYPE
-      check_auth_args authtype, *args, **kwargs
+      authtype, args, kwargs = check_auth_args authtype, *args, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
       authenticator.auth(*args, **kwargs, &block)
     end
 
     private
 
-    def check_auth_args(type, *args, **kwargs)
-      type ||= DEFAULT_AUTH_TYPE
+    def check_auth_args(type_arg = nil, *args, type: nil, **kwargs)
+      type ||= type_arg || DEFAULT_AUTH_TYPE
       klass = Authenticator.auth_class(type) or
         raise ArgumentError, "wrong authentication type #{type}"
       klass.check_args(*args, **kwargs)
+      [type, args, kwargs]
     end
 
     #
