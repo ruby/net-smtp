@@ -869,10 +869,10 @@ module Net
     # All arguments-other than +authtype+-are forwarded to the authenticator.
     # Different authenticators may interpret the +user+ and +secret+
     # arguments differently.
-    def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
-      check_auth_args authtype, user, secret
+    def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE, **kwargs, &block)
+      check_auth_args authtype, user, secret, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
-      authenticator.auth(user, secret)
+      authenticator.auth(user, secret, **kwargs, &block)
     end
 
     private
