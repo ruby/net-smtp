@@ -633,9 +633,8 @@ module Net
 
     def do_start(helo_domain, user, secret, authtype)
       raise IOError, 'SMTP session already started' if @started
-      if user or secret
-        check_auth_method(authtype || DEFAULT_AUTH_TYPE)
-        check_auth_args user, secret
+      if user || secret || authtype
+        check_auth_args authtype, user, secret
       end
       s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
         tcp_socket(@address, @port)
@@ -832,27 +831,18 @@ module Net
     DEFAULT_AUTH_TYPE = :plain
 
     def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
-      check_auth_method authtype
-      check_auth_args user, secret
+      check_auth_args authtype, user, secret
       authenticator = Authenticator.auth_class(authtype).new(self)
       authenticator.auth(user, secret)
     end
 
     private
 
-    def check_auth_method(type)
-      unless Authenticator.auth_class(type)
+    def check_auth_args(type, *args, **kwargs)
+      type ||= DEFAULT_AUTH_TYPE
+      klass = Authenticator.auth_class(type) or
         raise ArgumentError, "wrong authentication type #{type}"
-      end
-    end
-
-    def check_auth_args(user, secret, authtype = DEFAULT_AUTH_TYPE)
-      unless user
-        raise ArgumentError, 'SMTP-AUTH requested but missing user name'
-      end
-      unless secret
-        raise ArgumentError, 'SMTP-AUTH requested but missing secret phrase'
-      end
+      klass.check_args(*args, **kwargs)
     end
 
     #

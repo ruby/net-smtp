@@ -15,6 +15,15 @@ module Net
         Authenticator.auth_classes[type]
       end
 
+      def self.check_args(user_arg = nil, secret_arg = nil, *, **)
+        unless user_arg
+          raise ArgumentError, 'SMTP-AUTH requested but missing user name'
+        end
+        unless secret_arg
+          raise ArgumentError, 'SMTP-AUTH requested but missing secret phrase'
+        end
+      end
+
       attr_reader :smtp
 
       def initialize(smtp)
