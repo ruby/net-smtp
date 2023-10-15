@@ -6,11 +6,13 @@ module Net
       end
 
       def self.auth_type(type)
+        type = type.to_s.upcase.tr(?_, ?-).to_sym
         Authenticator.auth_classes[type] = self
       end
 
       def self.auth_class(type)
-        Authenticator.auth_classes[type.intern]
+        type = type.to_s.upcase.tr(?_, ?-).to_sym
+        Authenticator.auth_classes[type]
       end
 
       attr_reader :smtp

@@ -485,7 +485,7 @@ module Net
       omit "openssl or digest library not loaded" unless defined? OpenSSL or defined? Digest
 
       port = fake_server_start(auth: 'CRAM-MD5')
-      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :cram_md5){}
+      Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: "CRAM-MD5"){}
 
       port = fake_server_start(auth: 'CRAM-MD5')
       assert_raise Net::SMTPAuthenticationError do
