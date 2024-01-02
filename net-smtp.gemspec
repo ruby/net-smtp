@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.description   = %q{Simple Mail Transfer Protocol client library for Ruby.}
   spec.homepage      = "https://github.com/ruby/net-smtp"
   spec.licenses      = ["Ruby", "BSD-2-Clause"]
-  spec.required_ruby_version = ">= 2.6.0"
+  spec.required_ruby_version = ">= 2.7.3"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
@@ -26,4 +26,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "net-protocol"
+
+  spec.add_dependency "net-imap", ">= 0.4.2" # experimental SASL support
 end
