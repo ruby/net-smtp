@@ -185,7 +185,7 @@ module Net
   #     Net::SMTP.start('your.smtp.server', 25,
   #                     user: 'Your Account', secret: 'Your Password', authtype: :plain)
   #
-  # Support for other SASL mechanisms—such as +EXTERNAL+, +OAUTHBEARER+,
+  # Support for other SASL mechanisms-such as +EXTERNAL+, +OAUTHBEARER+,
   # +SCRAM-SHA-256+, and +XOAUTH2+—will be added in a future release.
   #
   # The +LOGIN+ and +CRAM-MD5+ mechanisms are still available for backwards
