@@ -185,8 +185,8 @@ module Net
   #     Net::SMTP.start('your.smtp.server', 25,
   #                     user: 'Your Account', secret: 'Your Password', authtype: :plain)
   #
-  # Support for other SASL mechanisms—such as +EXTERNAL+, +OAUTHBEARER+,
-  # +SCRAM-SHA-256+, and +XOAUTH2+—will be added in a future release.
+  # Support for other SASL mechanisms-such as +EXTERNAL+, +OAUTHBEARER+,
+  # +SCRAM-SHA-256+, and +XOAUTH2+-will be added in a future release.
   #
   # The +LOGIN+ and +CRAM-MD5+ mechanisms are still available for backwards
   # compatibility, but are deprecated and should be avoided.
@@ -518,7 +518,7 @@ module Net
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
-    # These will be sent to #authenticate as positional arguments—the exact
+    # These will be sent to #authenticate as positional arguments-the exact
     # semantics are dependent on the +authtype+.
     #
     # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
@@ -575,7 +575,7 @@ module Net
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
-    # These will be sent to #authenticate as positional arguments—the exact
+    # These will be sent to #authenticate as positional arguments-the exact
     # semantics are dependent on the +authtype+.
     #
     # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
@@ -866,7 +866,7 @@ module Net
     #
     # +authtype+ is the name of a SASL authentication mechanism.
     #
-    # All arguments—other than +authtype+—are forwarded to the authenticator.
+    # All arguments-other than +authtype+-are forwarded to the authenticator.
     # Different authenticators may interpret the +user+ and +secret+
     # arguments differently.
     def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
