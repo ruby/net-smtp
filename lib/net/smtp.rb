@@ -179,7 +179,7 @@ module Net
   #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
   #
   class SMTP < Protocol
-    VERSION = "0.3.1"
+    VERSION = "0.3.1.1"
 
     Revision = %q$Revision$.split[1]
 
