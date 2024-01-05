@@ -187,7 +187,7 @@ module Net
   #                     user: 'Your Account', secret: 'Your Password', authtype: :cram_md5)
   #
   class SMTP < Protocol
-    VERSION = "0.4.0"
+    VERSION = "0.4.0.1"
 
     # The default SMTP port number, 25.
     def SMTP.default_port
