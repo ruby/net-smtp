@@ -147,6 +147,21 @@ module Net
       assert_equal "235", err.response.status
     end
 
+    def test_auth_xoauth2
+      server = FakeServer.start(auth: 'xoauth2')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.authenticate("account", "token", :xoauth2).success?
+      assert_equal "AUTH XOAUTH2 dXNlcj1hY2NvdW50AWF1dGg9QmVhcmVyIHRva2VuAQE=\r\n", server.commands.last
+    end
+
+    def test_unsucessful_auth_xoauth2
+      server = FakeServer.start(auth: 'xoauth2')
+      smtp = Net::SMTP.start 'localhost', server.port
+      err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("account", "password", :xoauth2) }
+      assert_equal "535 5.7.8 Error: authentication failed: authentication failure\n", err.message
+      assert_equal "535", err.response.status
+    end
+
     def test_send_message
       port = fake_server_start
       smtp = Net::SMTP.start 'localhost', port
@@ -712,6 +727,8 @@ module Net
                  @sock.puts "334 PDEyMzQ1Njc4OTAuMTIzNDVAc2VydmVybmFtZT4=\r\n"
                  r = @sock.gets&.chomp
                  r == 'YWNjb3VudCAyYzBjMTgxZjkxOGU2ZGM5Mjg3Zjk3N2E1ODhiMzg1YQ=='
+               when 'XOAUTH2'
+                 arg == 'dXNlcj1hY2NvdW50AWF1dGg9QmVhcmVyIHRva2VuAQE='
                end
       if result
         @sock.puts "235 2.7.0 Authentication successful\r\n"
