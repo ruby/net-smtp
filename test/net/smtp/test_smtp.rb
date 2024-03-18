@@ -672,7 +672,7 @@ module Net
     end
 
     def ehlo(_)
-      res = ["220-servername\r\n"]
+      res = [+"220-servername\r\n"]
       @capa.each do |k, v|
         case v
         when nil, false
