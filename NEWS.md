@@ -1,5 +1,24 @@
 # NEWS
 
+## Version 0.5.0 (2024-03-27)
+
+### Improvements
+
+* Allow case-insensitive strings for SASL mechanism <https://github.com/ruby/net-smtp/pull/64>
+* Make #auth_capable? public <https://github.com/ruby/net-smtp/pull/63>
+* Add XOAUTH2 authenticator <https://github.com/ruby/net-smtp/pull/80>
+
+### Others
+
+* Remove unused private auth_method <https://github.com/ruby/net-smtp/pull/67>
+* Delegate checking auth args to the authenticator <https://github.com/ruby/net-smtp/pull/73>
+* Updated docs, especially TLS and SASL-related <https://github.com/ruby/net-smtp/pull/66>
+* Renew test certificates <https://github.com/ruby/net-smtp/pull/75>
+* Fix version extraction to work with non ASCII characters with any LANG <https://github.com/ruby/net-smtp/pull/76>
+* Replace non-ASCII EM DASH (U+2014) with ASCII hyphen (U+002D) <https://github.com/ruby/net-smtp/pull/78>
+* Use reusing workflow for Ruby versions <https://github.com/ruby/net-smtp/pull/79>
+* Make the test suite compatible with --enable-frozen-string-literal <https://github.com/ruby/net-smtp/pull/81>
+
 ## Version 0.4.0 (2023-09-20)
 
 ### Improvements
