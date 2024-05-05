@@ -682,7 +682,7 @@ module Net
           do_start helo, username, secret, authtype, **auth
           return yield(self)
         ensure
-          do_finish
+          quit!
         end
       else
         do_start helo, username, secret, authtype, **auth
@@ -694,7 +694,7 @@ module Net
     # Raises IOError if not started.
     def finish
       raise IOError, 'not yet started' unless started?
-      do_finish
+      quit!
     end
 
     private
@@ -772,14 +772,45 @@ module Net
       raise
     end
 
-    def do_finish
+    public
+
+    # Calls #quit and ensures that #disconnect is called.  Returns the result
+    # from #quit.  Returns +nil+ when the client is already disconnected or when
+    # a prior error prevents the client from calling #quit.  Unlike #finish,
+    # this an exception will not be raised when the client has not started.
+    #
+    # When <tt>exception: :warn</tt> is specified, when #quit raises a
+    # StandardError, a warning will be printed and the exception is returned,
+    # not re-raised.  When <tt>exception: false</tt> is specified, a warning
+    # will not be printed.  This is useful when the connection must be dropped,
+    # for example in a test suite or due to security concerns.
+    #
+    # Related: #finish, #quit, #disconnect
+    def quit!(exception: true)
       quit if @socket and not @socket.closed? and not @error_occurred
+    rescue => ex
+      if exception == :warn
+        warn "%s during %p #%s: %s" % [ex.class, self, __method__, ex]
+      elsif exception
+        raise ex
+      end
+      ex
     ensure
+      disconnect
+    end
+
+    # Disconnects the socket without checking if the connection has started yet,
+    # and without sending a final QUIT message to the server.
+    #
+    # Generally, either #finish or #quit! should be used instead.
+    def disconnect
       @started = false
       @error_occurred = false
       @socket.close if @socket
       @socket = nil
     end
+
+    private
 
     def requires_smtputf8(address)
       if address.kind_of? Address
