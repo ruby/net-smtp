@@ -35,8 +35,8 @@ module Net
       def host;               client.address    end
       def response_errors;    RESPONSE_ERRORS   end
       def sasl_ir_capable?;   true              end
-      def drop_connection;    client.finish     end
-      def drop_connection!;   client.finish     end
+      def drop_connection;    client.quit!(exception: :warn) end
+      def drop_connection!;   client.disconnect end
     end
   end
 end
