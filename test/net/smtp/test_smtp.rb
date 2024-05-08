@@ -2,6 +2,9 @@
 
 require 'net/smtp'
 require 'test/unit'
+require "core_assertions"
+
+Test::Unit::TestCase.include Test::Unit::CoreAssertions
 
 module Net
   class TestSMTP < Test::Unit::TestCase
@@ -626,6 +629,19 @@ module Net
 
       # Already finished:
       smtp.quit!
+    end
+
+    def test_quit_and_warn
+      server = FakeServer.start
+      def server.quit
+        @sock.puts "400 BUSY\r\n"
+      end
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert_warn(/SMTPServerBusy during .*#quit!/i) do
+        smtp.quit!(exception: :warn)
+      end
+      assert_equal "QUIT\r\n", server.commands.last
+      refute smtp.started?
     end
 
     def test_quit_and_reraise
