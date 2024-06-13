@@ -7,7 +7,7 @@ jobs:
     uses: ruby/actions/.github/workflows/ruby_versions.yml@master
     with:
       engine: cruby
-      min_version: 2.6
+      min_version: 2.7
 
   build:
     needs: ruby-versions
@@ -26,4 +26,4 @@ jobs:
     - name: Install dependencies
       run: bundle install
     - name: Run test
-      run: rake test
+      run: bundle exec rake test
