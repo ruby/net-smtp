@@ -789,7 +789,7 @@ module Net
           @sock.puts "502 5.5.2 Error: command not recognized\r\n"
         end
       end
-    rescue Errno::ECONNRESET
+    rescue Errno::ECONNRESET, Errno::ECONNABORTED
       nil
     end
   end
