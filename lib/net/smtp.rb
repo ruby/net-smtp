@@ -183,7 +183,7 @@ module Net
   #
   #     # PLAIN
   #     Net::SMTP.start('your.smtp.server', 25,
-  #                     user: 'Your Account', secret: 'Your Password', authtype: :plain)
+  #                     username: 'Your Account', secret: 'Your Password', authtype: :plain)
   #
   # Support for other SASL mechanisms-such as +EXTERNAL+, +OAUTHBEARER+,
   # +SCRAM-SHA-256+, and +XOAUTH2+-will be added in a future release.
@@ -459,15 +459,16 @@ module Net
 
     #
     # :call-seq:
-    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
-    #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(address, port = nil, helo: 'localhost', auth: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
+    #  start(address, port = nil, helo: 'localhost', username: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
+    #  start(address, port = nil, helo = 'localhost', username = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Creates a new Net::SMTP object and connects to the server.
     #
     # This method is equivalent to:
     #
     #   Net::SMTP.new(address, port, tls_verify: flag, tls_hostname: hostname, ssl_context_params: nil)
-    #     .start(helo: helo_domain, user: account, secret: password, authtype: authtype)
+    #     .start(helo: helo_domain, username: account, secret: password, authtype: authtype)
     #
     # See also: Net::SMTP.new, #start
     #
@@ -514,12 +515,14 @@ module Net
     #
     # +authtype+ is the SASL authentication mechanism.
     #
-    # +user+ is the authentication or authorization identity.
+    # +username+ or +user+ is the authentication or authorization identity.
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
     # These will be sent to #authenticate as positional arguments-the exact
     # semantics are dependent on the +authtype+.
+    #
+    # +auth+ is an optional hash of keyword arguments for #authenticate.
     #
     # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
     #
@@ -538,15 +541,18 @@ module Net
     #
     def SMTP.start(address, port = nil, *args, helo: nil,
                    user: nil, secret: nil, password: nil, authtype: nil,
+                   username: nil,
+                   auth: nil,
                    tls: false, starttls: :auto,
                    tls_verify: true, tls_hostname: nil, ssl_context_params: nil,
                    &block)
       raise ArgumentError, "wrong number of arguments (given #{args.size + 2}, expected 1..6)" if args.size > 4
       helo ||= args[0] || 'localhost'
-      user ||= args[1]
+      username ||= user || args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
-      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
+      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params)
+        .start(helo: helo, username: username, secret: secret, authtype: authtype, auth: auth, &block)
     end
 
     # +true+ if the \SMTP session has been started.
@@ -556,8 +562,9 @@ module Net
 
     #
     # :call-seq:
-    #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil) { |smtp| ... }
-    #  start(helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(helo: 'localhost', username: nil, secret: nil, authtype: nil) { |smtp| ... }
+    #  start(helo = 'localhost', username = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(helo = 'localhost', auth: {type: nil, **auth_kwargs}) { |smtp| ... }
     #
     # Opens a TCP connection and starts the SMTP session.
     #
@@ -571,12 +578,14 @@ module Net
     #
     # +authtype+ is the SASL authentication mechanism.
     #
-    # +user+ is the authentication or authorization identity.
+    # +username+ or +user+ is the authentication or authorization identity.
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
     # These will be sent to #authenticate as positional arguments-the exact
     # semantics are dependent on the +authtype+.
+    #
+    # +auth+ is an optional hash of keyword arguments for #authenticate.
     #
     # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
     #
@@ -595,7 +604,7 @@ module Net
     #
     #     require 'net/smtp'
     #     smtp = Net::SMTP.new('smtp.mail.server', 25)
-    #     smtp.start(helo: helo_domain, user: account, secret: password, authtype: authtype) do |smtp|
+    #     smtp.start(helo: helo_domain, username: account, secret: password, authtype: authtype) do |smtp|
     #       smtp.send_message msgstr, 'from@example.com', ['dest@example.com']
     #     end
     #
@@ -619,12 +628,15 @@ module Net
     # * Net::ReadTimeout
     # * IOError
     #
-    def start(*args, helo: nil, user: nil, secret: nil, password: nil, authtype: nil)
+    def start(*args, helo: nil,
+              user: nil, username: nil, secret: nil, password: nil,
+              authtype: nil, auth: nil)
       raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
       helo ||= args[0] || 'localhost'
-      user ||= args[1]
+      username ||= user || args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
+      auth ||= {}
       if defined?(OpenSSL::VERSION)
         ssl_context_params = @ssl_context_params || {}
         unless ssl_context_params.has_key?(:verify_mode)
@@ -639,13 +651,13 @@ module Net
       end
       if block_given?
         begin
-          do_start helo, user, secret, authtype
+          do_start helo, username, secret, authtype, **auth
           return yield(self)
         ensure
           do_finish
         end
       else
-        do_start helo, user, secret, authtype
+        do_start helo, username, secret, authtype, **auth
         return self
       end
     end
@@ -663,10 +675,10 @@ module Net
       TCPSocket.open address, port
     end
 
-    def do_start(helo_domain, user, secret, authtype)
+    def do_start(helo_domain, user, secret, authtype, **auth)
       raise IOError, 'SMTP session already started' if @started
-      if user || secret || authtype
-        check_auth_args authtype, user, secret
+      if user || secret || authtype || auth.any?
+        check_auth_args(authtype, user, secret, **auth)
       end
       s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
         tcp_socket(@address, @port)
@@ -684,7 +696,11 @@ module Net
         # helo response may be different after STARTTLS
         do_helo helo_domain
       end
-      authenticate user, secret, (authtype || DEFAULT_AUTH_TYPE) if user
+      if user or secret
+        authenticate(user, secret, authtype, **auth)
+      elsif authtype or auth.any?
+        authenticate(authtype, **auth)
+      end
       @started = true
     ensure
       unless @started
@@ -862,26 +878,55 @@ module Net
 
     DEFAULT_AUTH_TYPE = :plain
 
+    # call-seq:
+    #   authenticate(type: DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(type = DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(username, secret, type: DEFAULT_AUTH_TYPE, **, &)
+    #   authenticate(username, secret, type = DEFAULT_AUTH_TYPE, **, &)
+    #
     # Authenticates with the server, using the "AUTH" command.
     #
-    # +authtype+ is the name of a SASL authentication mechanism.
+    # +type+ is the name of a SASL authentication mechanism.
     #
     # All arguments-other than +authtype+-are forwarded to the authenticator.
-    # Different authenticators may interpret the +user+ and +secret+
+    # Different authenticators may interpret the +username+ and +secret+
     # arguments differently.
-    def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
-      check_auth_args authtype, user, secret
+    def authenticate(*args, **kwargs, &block)
+      case args.length
+      when 1, 3 then authtype = args.pop
+      when (4..)
+        raise ArgumentError, "wrong number of arguments " \
+                             "(given %d, expected 0..3)" % [args.length]
+      end
+      auth(authtype, *args, **kwargs, &block)
+    end
+
+    # call-seq:
+    #   auth(type = DEFAULT_AUTH_TYPE, ...)
+    #   auth(type: DEFAULT_AUTH_TYPE, **kwargs, &block)
+    #
+    # All arguments besides +mechanism+ are forwarded directly to the
+    # authenticator.  Alternatively, +mechanism+ can be provided by the +type+
+    # keyword parameter.  Positional parameters cannot be used with +type+.
+    #
+    # Different authenticators take different options, but common options
+    # include +authcid+ for authentication identity, +authzid+ for authorization
+    # identity, +username+ for either "authentication identity" or
+    # "authorization identity" depending on the +mechanism+, and +password+.
+    def auth(authtype = DEFAULT_AUTH_TYPE, *args, **kwargs, &block)
+      authtype, args, kwargs = check_auth_args authtype, *args, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
-      authenticator.auth(user, secret)
+      authenticator.auth(*args, **kwargs, &block)
     end
 
     private
 
-    def check_auth_args(type, *args, **kwargs)
-      type ||= DEFAULT_AUTH_TYPE
+    def check_auth_args(type_arg = nil, *args, type: nil, **kwargs)
+      type ||= type_arg || DEFAULT_AUTH_TYPE
       klass = Authenticator.auth_class(type) or
         raise ArgumentError, "wrong authentication type #{type}"
       klass.check_args(*args, **kwargs)
+      [type, args, kwargs]
     end
 
     #
