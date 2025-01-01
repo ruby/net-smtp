@@ -112,7 +112,7 @@ module Net
       assert_equal "AUTH PLAIN AGFjY291bnQAcGFzc3dvcmQ=\r\n", server.commands.last
     end
 
-    def test_unsucessful_auth_plain
+    def test_unsuccessful_auth_plain
       server = FakeServer.start(auth: 'plain')
       smtp = Net::SMTP.start 'localhost', server.port
       err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :plain) }
@@ -126,7 +126,7 @@ module Net
       assert smtp.authenticate("account", "password", :login).success?
     end
 
-    def test_unsucessful_auth_login
+    def test_unsuccessful_auth_login
       server = FakeServer.start(auth: 'login')
       smtp = Net::SMTP.start 'localhost', server.port
       err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("foo", "bar", :login) }
@@ -154,7 +154,7 @@ module Net
       assert_equal "AUTH XOAUTH2 dXNlcj1hY2NvdW50AWF1dGg9QmVhcmVyIHRva2VuAQE=\r\n", server.commands.last
     end
 
-    def test_unsucessful_auth_xoauth2
+    def test_unsuccessful_auth_xoauth2
       server = FakeServer.start(auth: 'xoauth2')
       smtp = Net::SMTP.start 'localhost', server.port
       err = assert_raise(Net::SMTPAuthenticationError) { smtp.authenticate("account", "password", :xoauth2) }
