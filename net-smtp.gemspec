@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
 
-  spec.files = `git ls-files README.md NEWS.md LICENSE.txt lib`.split
+  spec.files = `git ls-files README.md NEWS.md LICENSE.txt net-smtp.gemspec lib`.split
   spec.require_paths = ["lib"]
 
   spec.add_dependency "net-protocol"
