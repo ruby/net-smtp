@@ -15,11 +15,14 @@ module Net
         Authenticator.auth_classes[type]
       end
 
-      def self.check_args(user_arg = nil, secret_arg = nil, *, **)
-        unless user_arg
+      def self.check_args(user_arg = nil, secret_arg = nil, *,
+                          authcid: nil, username: nil, user: nil,
+                          secret: nil, password: nil,
+                          **)
+        unless authcid || username || user || user_arg
           raise ArgumentError, 'SMTP-AUTH requested but missing user name'
         end
-        unless secret_arg
+        unless password || secret || secret_arg
           raise ArgumentError, 'SMTP-AUTH requested but missing secret phrase'
         end
       end
@@ -52,6 +55,12 @@ module Net
         # expects "str" may not become too long
         [str].pack('m0')
       end
+
+      def req_param(*args, name)
+        args.compact.first or
+          raise ArgumentError, "SMTP-AUTH requested but missing #{name}"
+      end
+
     end
   end
 end
