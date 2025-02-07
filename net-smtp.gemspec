@@ -22,8 +22,13 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
 
-  spec.files = Dir.chdir(File.expand_path('..', __FILE__)) do
-    `git ls-files README.md NEWS.md LICENSE.txt net-smtp.gemspec lib`.split
+  spec.files = [
+    "README.md",
+    "NEWS.md",
+    "LICENSE.txt",
+    "net-smtp.gemspec"
+  ] + Dir.chdir(File.expand_path('..', __FILE__)) do
+    Dir.glob("lib/**/*").map {|f| f unless File.directory?(f) }.compact
   end
   spec.require_paths = ["lib"]
 
