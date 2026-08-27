@@ -626,7 +626,7 @@ module Net
       secret ||= password || args[2]
       authtype ||= args[3]
       if defined?(OpenSSL::VERSION)
-        ssl_context_params = @ssl_context_params || {}
+        ssl_context_params = @ssl_context_params&.dup || {}
         unless ssl_context_params.has_key?(:verify_mode)
           ssl_context_params[:verify_mode] = @tls_verify ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
         end
