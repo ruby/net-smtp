@@ -621,6 +621,7 @@ module Net
     #
     def start(*args, helo: nil, user: nil, secret: nil, password: nil, authtype: nil)
       raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
+      raise IOError, 'SMTP session already started' if @started
       helo ||= args[0] || 'localhost'
       user ||= args[1]
       secret ||= password || args[2]
@@ -664,7 +665,6 @@ module Net
     end
 
     def do_start(helo_domain, user, secret, authtype)
-      raise IOError, 'SMTP session already started' if @started
       if user || secret || authtype
         check_auth_args authtype, user, secret
       end
