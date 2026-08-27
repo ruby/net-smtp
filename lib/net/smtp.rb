@@ -668,6 +668,7 @@ module Net
       if user || secret || authtype
         check_auth_args authtype, user, secret
       end
+      @error_occurred = false
       s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
         tcp_socket(@address, @port)
       end
