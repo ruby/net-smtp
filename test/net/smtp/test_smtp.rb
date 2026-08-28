@@ -530,6 +530,20 @@ module Net
       smtp.finish
     end
 
+    def test_nested_block_start_preserves_active_session
+      server = FakeServer.start
+      smtp = Net::SMTP.start("localhost", server.port)
+
+      error = assert_raise(IOError) do
+        smtp.start { flunk("nested start must not yield") }
+      end
+      assert_equal "SMTP session already started", error.message
+      assert smtp.started?
+      assert smtp.rset.success?
+    ensure
+      smtp.finish if smtp&.started?
+    end
+
     def test_start_instance_with_position_argument
       port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.new('localhost', port)
