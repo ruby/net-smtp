@@ -95,6 +95,14 @@ module Net
         res = Response.parse("250 omg fatal error")
         assert_equal Net::SMTPUnknownError, res.exception_class
       end
+
+      def test_smtp_exception_uses_standard_exception_message
+        error = Net::SMTPFatalError.new("original")
+        replacement = error.exception("replacement")
+
+        assert_equal "original", error.to_s
+        assert_equal "replacement", replacement.message
+      end
     end
   end
 end
