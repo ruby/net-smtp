@@ -301,7 +301,8 @@ module Net
     def capable?(key)
       return nil unless @capabilities
       return true if @capabilities[key]
-      @capabilities.each_key.any? { |capability| capability&.casecmp?(key.to_s) }
+      key = key.to_s
+      @capabilities.each_key.any? { |capability| capability&.casecmp?(key) }
     end
 
     # The server capabilities by EHLO response
