@@ -52,7 +52,7 @@ module Net
       sock = OpenSSL::SSL::SSLSocket.new(sock, ctx)
       sock.sync_close = true
       sock.accept
-    rescue OpenSSL::SSL::SSLError
+    rescue OpenSSL::SSL::SSLError, SystemCallError
       # The client must be raising SSLError, too
     end
 
