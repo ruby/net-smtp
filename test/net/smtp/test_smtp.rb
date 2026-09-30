@@ -253,6 +253,30 @@ module Net
       assert_equal "250", err.response.status
     end
 
+    def test_data_restores_sync_when_flush_fails
+      io = Object.new
+      class << io
+        attr_accessor :sync
+
+        def flush
+          raise IOError, "flush failed"
+        end
+      end
+      io.sync = true
+      socket = Object.new
+      socket.define_singleton_method(:io) { io }
+      socket.define_singleton_method(:write_message) { |_| }
+
+      smtp = Net::SMTP.new("example.invalid", starttls: false)
+      smtp.instance_variable_set(:@socket, socket)
+      smtp.define_singleton_method(:get_response) do |_|
+        Net::SMTP::Response.parse("354 continue")
+      end
+
+      assert_raise(IOError) { smtp.data("message") }
+      assert_equal true, io.sync
+    end
+
     def test_crlf_injection
       server = FakeServer.new
       smtp = Net::SMTP.new 'localhost', server.port

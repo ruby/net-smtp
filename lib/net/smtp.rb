@@ -973,8 +973,11 @@ module Net
             @socket.write_message_by_block(&block)
           end
         ensure
-          @socket.io.flush
-          @socket.io.sync = socket_sync_bak
+          begin
+            @socket.io.flush
+          ensure
+            @socket.io.sync = socket_sync_bak
+          end
         end
         recv_response()
       }
