@@ -659,8 +659,24 @@ module Net
 
     private
 
-    def tcp_socket(address, port)
-      TCPSocket.open address, port
+    tcp_socket_parameters = TCPSocket.instance_method(:initialize).parameters
+    TCP_SOCKET_NEW_HAS_OPEN_TIMEOUT = if tcp_socket_parameters != [[:rest]]
+                                        tcp_socket_parameters.include?([:key, :open_timeout])
+                                      else
+                                        # Use Socket.tcp to find out since there is no parameters information for TCPSocket#initialize
+                                        # See discussion in https://github.com/ruby/net-http/pull/224
+                                        Socket.method(:tcp).parameters.include?([:key, :open_timeout])
+                                      end
+    private_constant :TCP_SOCKET_NEW_HAS_OPEN_TIMEOUT
+
+    def tcp_socket(conn_addr, conn_port)
+      if TCP_SOCKET_NEW_HAS_OPEN_TIMEOUT
+        TCPSocket.open(conn_addr, conn_port, open_timeout: @open_timeout)
+      else
+        Timeout.timeout(@open_timeout, Net::OpenTimeout) {
+          TCPSocket.open(conn_addr, conn_port)
+        }
+      end
     end
 
     def do_start(helo_domain, user, secret, authtype)
@@ -668,9 +684,14 @@ module Net
       if user || secret || authtype
         check_auth_args authtype, user, secret
       end
-      s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
-        tcp_socket(@address, @port)
-      end
+      s = begin
+            tcp_socket(@address, @port)
+          rescue => e
+            if (defined?(IO::TimeoutError) && e.is_a?(IO::TimeoutError)) || e.is_a?(Errno::ETIMEDOUT)  # for compatibility with previous versions
+              e = Net::OpenTimeout.new(e)
+            end
+            raise e
+          end
       logging "Connection opened: #{@address}:#{@port}"
       @socket = new_internet_message_io(tls? ? tlsconnect(s, @ssl_context_tls) : s)
       check_response critical { recv_response() }
