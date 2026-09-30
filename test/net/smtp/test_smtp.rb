@@ -2,6 +2,9 @@
 
 require 'net/smtp'
 require 'test/unit'
+require "core_assertions"
+
+Test::Unit::TestCase.include Test::Unit::CoreAssertions
 
 module Net
   class TestSMTP < Test::Unit::TestCase
@@ -592,6 +595,85 @@ module Net
       smtp = Net::SMTP.start 'localhost', server.port
       smtp.mailfrom("rené@example.com")
       assert_equal "MAIL FROM:<rené@example.com> SMTPUTF8\r\n", server.commands.last
+    end
+
+    def test_quit
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
+      smtp.quit
+      assert_equal "QUIT\r\n", server.commands.last
+
+      # Already finished:
+      assert_raise Errno, IOError, EOFError do
+        smtp.quit
+      end
+
+      server = FakeServer.start
+      def server.quit
+        @sock.puts "400 BUSY\r\n"
+      end
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert_raise Net::SMTPServerBusy do
+        smtp.quit
+      end
+      assert_equal "QUIT\r\n", server.commands.last
+      assert smtp.started?
+    end
+
+    def test_quit!
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
+      smtp.quit!
+      assert_equal "QUIT\r\n", server.commands.last
+      refute smtp.started?
+
+      # Already finished:
+      smtp.quit!
+    end
+
+    def test_quit_and_warn
+      server = FakeServer.start
+      def server.quit
+        @sock.puts "400 BUSY\r\n"
+      end
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert_warn(/SMTPServerBusy during .*#quit!/i) do
+        smtp.quit!(exception: :warn)
+      end
+      assert_equal "QUIT\r\n", server.commands.last
+      refute smtp.started?
+    end
+
+    def test_quit_and_reraise
+      server = FakeServer.start
+      def server.quit
+        @sock.puts "400 BUSY\r\n"
+      end
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert_raise Net::SMTPServerBusy do
+        smtp.quit!
+      end
+      assert_equal "QUIT\r\n", server.commands.last
+      refute smtp.started?
+    end
+
+    def test_quit_and_ignore
+      server = FakeServer.start
+      def server.quit
+        @sock.puts "400 BUSY\r\n"
+      end
+      smtp = Net::SMTP.start 'localhost', server.port
+      smtp.quit!(exception: false)
+      assert_equal "QUIT\r\n", server.commands.last
+      refute smtp.started?
+    end
+
+    def test_disconnect
+      server = FakeServer.start
+      smtp = Net::SMTP.start 'localhost', server.port
+      smtp.disconnect
+      assert_equal "EHLO localhost\r\n", server.commands.last
+      refute smtp.started?
     end
 
     def fake_server_start(**kw)
