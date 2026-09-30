@@ -222,5 +222,16 @@ module Net
       smtp.start
       assert_equal(123, smtp.__ssl_context.timeout)
     end
+
+    def test_frozen_ssl_context_params
+      params = {}.freeze
+      smtp = SMTP.new("example.invalid", starttls: false)
+      smtp.ssl_context_params = params
+      smtp.define_singleton_method(:do_start) { |*| @started = true }
+      smtp.define_singleton_method(:do_finish) { @started = false }
+
+      assert_equal :started, smtp.start { :started }
+      assert_equal({}, params)
+    end
   end
 end
