@@ -33,15 +33,11 @@ module Net
     def initialize(response, message: nil)
       if response.is_a?(::Net::SMTP::Response)
         @response = response
-        @message = message
+        super(message || response.message)
       else
         @response = nil
-        @message = message || response
+        super(message || response)
       end
-    end
-
-    def message
-      @message || response.message
     end
   end
 
