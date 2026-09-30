@@ -188,7 +188,7 @@ module Net
   # compatibility, but are deprecated and should be avoided.
   #
   class SMTP < Protocol
-    VERSION = "0.5.1"
+    VERSION = "0.5.2"
 
     # The default SMTP port number, 25.
     def SMTP.default_port
