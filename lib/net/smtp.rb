@@ -668,6 +668,7 @@ module Net
       if user || secret || authtype
         check_auth_args authtype, user, secret
       end
+      @capabilities = nil
       s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
         tcp_socket(@address, @port)
       end
@@ -691,6 +692,7 @@ module Net
         # authentication failed, cancel connection.
         s.close if s
         @socket = nil
+        @capabilities = nil
       end
     end
 
