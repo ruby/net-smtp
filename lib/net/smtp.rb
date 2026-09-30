@@ -300,7 +300,9 @@ module Net
     # true if the EHLO response contains +key+.
     def capable?(key)
       return nil unless @capabilities
-      @capabilities[key] ? true : false
+      return true if @capabilities[key]
+      key = key.to_s
+      @capabilities.each_key.any? { |capability| capability&.casecmp?(key) }
     end
 
     # The server capabilities by EHLO response
