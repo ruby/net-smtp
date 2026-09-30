@@ -110,6 +110,21 @@ module Net
       smtp = Net::SMTP.start 'localhost', server.port
       assert smtp.authenticate("account", "password", :plain).success?
       assert_equal "AUTH PLAIN AGFjY291bnQAcGFzc3dvcmQ=\r\n", server.commands.last
+
+      server = FakeServer.start(auth: 'plain')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.auth("PLAIN", "account", "password").success?
+      assert_equal "AUTH PLAIN AGFjY291bnQAcGFzc3dvcmQ=\r\n", server.commands.last
+
+      server = FakeServer.start(auth: 'plain')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.auth(type: "PLAIN", username: "account", secret: "password").success?
+      assert_equal "AUTH PLAIN AGFjY291bnQAcGFzc3dvcmQ=\r\n", server.commands.last
+
+      server = FakeServer.start(auth: 'plain')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.auth("PLAIN", username: "account", password: "password").success?
+      assert_equal "AUTH PLAIN AGFjY291bnQAcGFzc3dvcmQ=\r\n", server.commands.last
     end
 
     def test_unsuccessful_auth_plain
@@ -120,10 +135,20 @@ module Net
       assert_equal "535", err.response.status
     end
 
+    def test_auth_cram_md5
+      server = FakeServer.start(auth: 'CRAM-MD5')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.auth(:cram_md5, "account", password: "password").success?
+    end
+
     def test_auth_login
       server = FakeServer.start(auth: 'login')
       smtp = Net::SMTP.start 'localhost', server.port
       assert smtp.authenticate("account", "password", :login).success?
+
+      server = FakeServer.start(auth: 'login')
+      smtp = Net::SMTP.start 'localhost', server.port
+      assert smtp.auth("LOGIN", username: "account", secret: "password").success?
     end
 
     def test_unsuccessful_auth_login
@@ -469,6 +494,15 @@ module Net
     def test_start_auth_plain
       port = fake_server_start(auth: 'plain')
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
+
+      port = fake_server_start(auth: 'plain')
+      Net::SMTP.start('localhost', port, authtype: "PLAIN",
+                      auth: {username: 'account', password: 'password'}){}
+
+      port = fake_server_start(auth: 'plain')
+      Net::SMTP.start('localhost', port, auth: {username: 'account',
+                                                password: 'password',
+                                                type: :plain}){}
 
       port = fake_server_start(auth: 'plain')
       assert_raise Net::SMTPAuthenticationError do
