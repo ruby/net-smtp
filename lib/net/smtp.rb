@@ -459,15 +459,15 @@ module Net
 
     #
     # :call-seq:
-    #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
-    #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(address, port = nil, helo: 'localhost', username: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
+    #  start(address, port = nil, helo = 'localhost', username = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Creates a new Net::SMTP object and connects to the server.
     #
     # This method is equivalent to:
     #
     #   Net::SMTP.new(address, port, tls_verify: flag, tls_hostname: hostname, ssl_context_params: nil)
-    #     .start(helo: helo_domain, user: account, secret: password, authtype: authtype)
+    #     .start(helo: helo_domain, username: account, secret: password, authtype: authtype)
     #
     # See also: Net::SMTP.new, #start
     #
@@ -514,7 +514,7 @@ module Net
     #
     # +authtype+ is the SASL authentication mechanism.
     #
-    # +user+ is the authentication or authorization identity.
+    # +username+ or +user+ is the authentication or authorization identity.
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
@@ -538,15 +538,16 @@ module Net
     #
     def SMTP.start(address, port = nil, *args, helo: nil,
                    user: nil, secret: nil, password: nil, authtype: nil,
+                   username: nil,
                    tls: false, starttls: :auto,
                    tls_verify: true, tls_hostname: nil, ssl_context_params: nil,
                    &block)
       raise ArgumentError, "wrong number of arguments (given #{args.size + 2}, expected 1..6)" if args.size > 4
       helo ||= args[0] || 'localhost'
-      user ||= args[1]
+      username ||= user || args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
-      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
+      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, username: username, secret: secret, authtype: authtype, &block)
     end
 
     # +true+ if the \SMTP session has been started.
@@ -556,8 +557,8 @@ module Net
 
     #
     # :call-seq:
-    #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil) { |smtp| ... }
-    #  start(helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(helo: 'localhost', username: nil, secret: nil, authtype: nil) { |smtp| ... }
+    #  start(helo = 'localhost', username = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
     # Opens a TCP connection and starts the SMTP session.
     #
@@ -571,7 +572,7 @@ module Net
     #
     # +authtype+ is the SASL authentication mechanism.
     #
-    # +user+ is the authentication or authorization identity.
+    # +username+ or +user+ is the authentication or authorization identity.
     #
     # +secret+ or +password+ is your password or other authentication token.
     #
@@ -595,7 +596,7 @@ module Net
     #
     #     require 'net/smtp'
     #     smtp = Net::SMTP.new('smtp.mail.server', 25)
-    #     smtp.start(helo: helo_domain, user: account, secret: password, authtype: authtype) do |smtp|
+    #     smtp.start(helo: helo_domain, username: account, secret: password, authtype: authtype) do |smtp|
     #       smtp.send_message msgstr, 'from@example.com', ['dest@example.com']
     #     end
     #
@@ -619,10 +620,11 @@ module Net
     # * Net::ReadTimeout
     # * IOError
     #
-    def start(*args, helo: nil, user: nil, secret: nil, password: nil, authtype: nil)
+    def start(*args, helo: nil, user: nil, secret: nil, password: nil, authtype: nil,
+              username: nil)
       raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
       helo ||= args[0] || 'localhost'
-      user ||= args[1]
+      username ||= user || args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
       if defined?(OpenSSL::VERSION)
@@ -639,13 +641,13 @@ module Net
       end
       if block_given?
         begin
-          do_start helo, user, secret, authtype
+          do_start helo, username, secret, authtype
           return yield(self)
         ensure
           do_finish
         end
       else
-        do_start helo, user, secret, authtype
+        do_start helo, username, secret, authtype
         return self
       end
     end
