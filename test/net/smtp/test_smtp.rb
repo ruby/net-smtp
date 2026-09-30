@@ -530,6 +530,32 @@ module Net
       smtp.finish
     end
 
+    def test_start_instance_after_failed_greeting
+      smtp = Net::SMTP.new("example.invalid", starttls: false)
+      socket = Object.new
+      socket.define_singleton_method(:close) {}
+      smtp.define_singleton_method(:tcp_socket) { |*| socket }
+      smtp.define_singleton_method(:new_internet_message_io) { |io| io }
+      greetings = 0
+      smtp.define_singleton_method(:recv_response) do
+        greetings += 1
+        raise EOFError if greetings == 1
+        Net::SMTP::Response.parse("220 ready")
+      end
+      smtp.define_singleton_method(:do_helo) { |_| }
+      smtp.define_singleton_method(:do_finish) do
+        @started = false
+        @socket = nil
+      end
+
+      assert_raise(EOFError) { smtp.start }
+      smtp.start
+      assert_equal 2, greetings
+      assert smtp.started?
+    ensure
+      smtp.finish if smtp&.started?
+    end
+
     def test_start_instance_with_position_argument
       port = fake_server_start(auth: 'plain')
       smtp = Net::SMTP.new('localhost', port)
