@@ -102,6 +102,8 @@ module Net
     def test_address
       a = Net::SMTP::Address.new('foo@example.com', 'p0=123', {p1: 456}, p2: nil, p3: '789')
       assert_equal 'foo@example.com', a.address
+      assert_equal '<foo@example.com>', "<#{a}>" # Address#to_s
+      assert_match(/\Afoo@example\.com\z/, a) # Address#to_str
       assert_equal ['p0=123', 'p1=456', 'p2', 'p3=789'], a.parameters
     end
 
