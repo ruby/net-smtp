@@ -9,7 +9,12 @@ class Net::SMTP
   class AuthCramMD5 < Net::SMTP::Authenticator
     auth_type :cram_md5
 
-    def auth(user, secret)
+    def auth(user_arg = nil, secret_arg = nil,
+             authcid: nil, username: nil, user: nil,
+             secret: nil, password: nil,
+             **)
+      user   = req_param authcid, username, user, user_arg, "username (authcid)"
+      secret = req_param password, secret, secret_arg,      "secret (password)"
       challenge = continue('AUTH CRAM-MD5')
       crammed = cram_md5_response(secret, challenge.unpack1('m'))
       finish(base64_encode("#{user} #{crammed}"))
