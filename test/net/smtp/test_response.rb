@@ -24,6 +24,15 @@ module Net
         assert_equal ['1234'], res.capabilities['SIZE']
       end
 
+      def test_capabilities_normalize_keyword_case_only
+        res = Response.parse("250-fixture\n250-smtputf8\n250 size MiXeD\n")
+        assert_equal({
+                       "SMTPUTF8" => [],
+                       "SIZE" => ["MiXeD"],
+                     },
+                     res.capabilities)
+      end
+
       def test_capabilities_multi
         res = Response.parse("250-ubuntu-desktop\n250-SIZE 1 2 3\n250 DSN\n")
         assert_equal %w{1 2 3}, res.capabilities['SIZE']
