@@ -455,6 +455,7 @@ module Net
 
     #
     # :call-seq:
+    #  start(address, port = nil, helo: 'localhost', auth: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
     #  start(address, port = nil, helo: 'localhost', user: nil, secret: nil, authtype: nil, tls: false, starttls: :auto, tls_verify: true, tls_hostname: nil, ssl_context_params: nil) { |smtp| ... }
     #  start(address, port = nil, helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
     #
@@ -517,6 +518,8 @@ module Net
     # These will be sent to #authenticate as positional arguments-the exact
     # semantics are dependent on the +authtype+.
     #
+    # +auth+ is an optional hash of keyword arguments for #authenticate.
+    #
     # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
     #
     # === Errors
@@ -534,6 +537,7 @@ module Net
     #
     def SMTP.start(address, port = nil, *args, helo: nil,
                    user: nil, secret: nil, password: nil, authtype: nil,
+                   auth: nil,
                    tls: false, starttls: :auto,
                    tls_verify: true, tls_hostname: nil, ssl_context_params: nil,
                    &block)
@@ -542,7 +546,8 @@ module Net
       user ||= args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
-      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params).start(helo: helo, user: user, secret: secret, authtype: authtype, &block)
+      new(address, port, tls: tls, starttls: starttls, tls_verify: tls_verify, tls_hostname: tls_hostname, ssl_context_params: ssl_context_params)
+        .start(helo: helo, user: user, secret: secret, authtype: authtype, auth: auth, &block)
     end
 
     # +true+ if the \SMTP session has been started.
@@ -554,6 +559,7 @@ module Net
     # :call-seq:
     #  start(helo: 'localhost', user: nil, secret: nil, authtype: nil) { |smtp| ... }
     #  start(helo = 'localhost', user = nil, secret = nil, authtype = nil) { |smtp| ... }
+    #  start(helo = 'localhost', auth: {type: nil, **auth_kwargs}) { |smtp| ... }
     #
     # Opens a TCP connection and starts the SMTP session.
     #
@@ -573,6 +579,8 @@ module Net
     #
     # These will be sent to #authenticate as positional arguments-the exact
     # semantics are dependent on the +authtype+.
+    #
+    # +auth+ is an optional hash of keyword arguments for #authenticate.
     #
     # See the discussion of Net::SMTP@SMTP+Authentication in the overview notes.
     #
@@ -615,12 +623,15 @@ module Net
     # * Net::ReadTimeout
     # * IOError
     #
-    def start(*args, helo: nil, user: nil, secret: nil, password: nil, authtype: nil)
+    def start(*args, helo: nil,
+              user: nil, secret: nil, password: nil,
+              authtype: nil, auth: nil)
       raise ArgumentError, "wrong number of arguments (given #{args.size}, expected 0..4)" if args.size > 4
       helo ||= args[0] || 'localhost'
       user ||= args[1]
       secret ||= password || args[2]
       authtype ||= args[3]
+      auth ||= {}
       if defined?(OpenSSL::VERSION)
         ssl_context_params = @ssl_context_params&.dup || {}
         unless ssl_context_params.has_key?(:verify_mode)
@@ -635,13 +646,13 @@ module Net
       end
       if block_given?
         begin
-          do_start helo, user, secret, authtype
+          do_start helo, user, secret, authtype, **auth
           return yield(self)
         ensure
           do_finish
         end
       else
-        do_start helo, user, secret, authtype
+        do_start helo, user, secret, authtype, **auth
         return self
       end
     end
@@ -659,10 +670,10 @@ module Net
       TCPSocket.open address, port
     end
 
-    def do_start(helo_domain, user, secret, authtype)
+    def do_start(helo_domain, user, secret, authtype, **auth)
       raise IOError, 'SMTP session already started' if @started
-      if user || secret || authtype
-        check_auth_args authtype, user, secret
+      if user || secret || authtype || auth.any?
+        check_auth_args(authtype, user, secret, **auth)
       end
       @error_occurred = false
       s = Timeout.timeout(@open_timeout, Net::OpenTimeout) do
@@ -681,7 +692,11 @@ module Net
         # helo response may be different after STARTTLS
         do_helo helo_domain
       end
-      authenticate user, secret, (authtype || DEFAULT_AUTH_TYPE) if user
+      if user or secret
+        authenticate(user, secret, authtype, **auth)
+      elsif authtype or auth.any?
+        authenticate(authtype, **auth)
+      end
       @started = true
     ensure
       unless @started
@@ -866,10 +881,10 @@ module Net
     # All arguments-other than +authtype+-are forwarded to the authenticator.
     # Different authenticators may interpret the +user+ and +secret+
     # arguments differently.
-    def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE)
-      check_auth_args authtype, user, secret
+    def authenticate(user, secret, authtype = DEFAULT_AUTH_TYPE, **kwargs, &block)
+      check_auth_args authtype, user, secret, **kwargs
       authenticator = Authenticator.auth_class(authtype).new(self)
-      authenticator.auth(user, secret)
+      authenticator.auth(user, secret, **kwargs, &block)
     end
 
     private
