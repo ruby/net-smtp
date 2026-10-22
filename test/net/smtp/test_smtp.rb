@@ -523,6 +523,25 @@ module Net
       assert_equal('"openssl" or "digest" library is required', e.message)
     end
 
+    def test_cram_md5_response
+      omit "openssl library not loaded" unless defined? OpenSSL::HMAC
+
+      auth_cram_md5 = Net::SMTP::AuthCramMD5.new(nil)
+      challenge = "<1896.697170952@postoffice.reston.mci.net>"
+      # RFC 2195 example
+      assert_equal "b913a602c7eda7a495b4e6e7334d3890", auth_cram_md5.cram_md5_response("tanstaaftanstaaf", challenge)
+
+      [
+        "p\u00e4ssw\u00f6rd",       # non-ASCII secret
+        "\u00e9" * 40,             # 40 characters but 80 bytes, longer than the HMAC block
+        "\u00e9" * 40 + "a" * 30,  # more than 64 characters
+      ].each do |secret|
+        assert_equal OpenSSL::HMAC.hexdigest("MD5", secret, challenge),
+                     auth_cram_md5.cram_md5_response(secret, challenge.b),
+                     "secret: #{secret.inspect}"
+      end
+    end
+
     def test_start_instance
       port = fake_server_start
       smtp = Net::SMTP.new('localhost', port)
