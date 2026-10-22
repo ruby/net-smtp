@@ -20,14 +20,15 @@ class Net::SMTP
 
     # CRAM-MD5: [RFC2195]
     def cram_md5_response(secret, challenge)
-      tmp = digest_class::MD5.digest(cram_secret(secret, IMASK) + challenge)
+      tmp = digest_class::MD5.digest(cram_secret(secret, IMASK) + challenge.b)
       digest_class::MD5.hexdigest(cram_secret(secret, OMASK) + tmp)
     end
 
     CRAM_BUFSIZE = 64
 
     def cram_secret(secret, mask)
-      secret = digest_class::MD5.digest(secret) if secret.size > CRAM_BUFSIZE
+      secret = secret.b
+      secret = digest_class::MD5.digest(secret) if secret.bytesize > CRAM_BUFSIZE
       buf = secret.ljust(CRAM_BUFSIZE, "\0")
       0.upto(buf.size - 1) do |i|
         buf[i] = (buf[i].ord ^ mask).chr
