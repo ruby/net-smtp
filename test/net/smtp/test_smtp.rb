@@ -471,6 +471,15 @@ module Net
       Net::SMTP.start('localhost', port, user: 'account', password: 'password', authtype: :plain){}
 
       port = fake_server_start(auth: 'plain')
+      Net::SMTP.start('localhost', port, authtype: "PLAIN",
+                      auth: {username: 'account', password: 'password'}){}
+
+      port = fake_server_start(auth: 'plain')
+      Net::SMTP.start('localhost', port, auth: {username: 'account',
+                                                password: 'password',
+                                                type: :plain}){}
+
+      port = fake_server_start(auth: 'plain')
       assert_raise Net::SMTPAuthenticationError do
         Net::SMTP.start('localhost', port, user: 'account', password: 'invalid', authtype: :plain){}
       end
